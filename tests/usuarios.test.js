@@ -72,7 +72,9 @@ describe('Usuarios', () => {
   });
 
   it('debe desactivar el usuario y retornar 204', async () => {
-    const response = await request(app).delete(`/api/usuarios/${usuarioTemporalId}`);
+    const response = await request(app)
+      .delete(`/api/usuarios/${usuarioTemporalId}`)
+      .set('x-usuario-id', db.seedData.anaId);
 
     expect(response.status).toBe(204);
     expect(response.text).toBe('');
