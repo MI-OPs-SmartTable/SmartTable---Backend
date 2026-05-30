@@ -2,6 +2,7 @@ const express = require('express');
 const logger = require('./middlewares/logger');
 const notFound = require('./middlewares/notFound');
 const errorHandler = require('./middlewares/errorHandler');
+const auth = require('./middlewares/auth');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
@@ -11,9 +12,12 @@ app.use(express.json());
 
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/api/docs.json', (req, res) => {
-	res.setHeader('Content-Type', 'application/json');
-	res.send(swaggerSpec);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
+
+// Requiere autenticación en todas las rutas /api/* excepto documentación
+app.use('/api', (req, res, next) => (req.path.startsWith('/docs') ? next() : auth(req, res, next)));
 
 app.use('/api/roles', require('./routes/roles'));
 app.use('/api/usuarios', require('./routes/usuarios'));
