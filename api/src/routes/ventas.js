@@ -37,13 +37,14 @@ router.post('/', (req, res) => {
   try {
     if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
     if (isMissing(req.body.caja_id)) return res.status(400).json({ error: 'Campo caja_id requerido' });
-    if (req.body.pagos === undefined || req.body.pagos === null) return res.status(400).json({ error: 'Campo pagos requerido' });
-    if (req.body.pagos.monto_efectivo === undefined || req.body.pagos.monto_efectivo === null) {
-      return res.status(400).json({ error: 'Campo monto_efectivo requerido' });
+    if (req.body.pagos === undefined || req.body.pagos === null || typeof req.body.pagos !== 'object') {
+      return res.status(400).json({ error: 'Campo pagos requerido' });
     }
-    if (req.body.pagos.monto_transferencia === undefined || req.body.pagos.monto_transferencia === null) {
-      return res.status(400).json({ error: 'Campo monto_transferencia requerido' });
-    }
+
+    req.body.pagos = {
+      monto_efectivo: req.body.pagos.monto_efectivo ?? 0,
+      monto_transferencia: req.body.pagos.monto_transferencia ?? 0,
+    };
 
     return res.status(201).json(ventas.create(req.body));
   } catch (err) {
