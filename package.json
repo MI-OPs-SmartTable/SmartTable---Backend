@@ -1,0 +1,26 @@
+{
+  "name": "smarttable",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node api/index.js",
+    "dev": "node --watch api/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MI-OPs-SmartTable/SmartTable---Backend.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MI-OPs-SmartTable/SmartTable---Backend/issues"
+  },
+  "homepage": "https://github.com/MI-OPs-SmartTable/SmartTable---Backend#readme",
+  "description": "",
+  "dependencies": {
+    "better-sqlite3": "^12.10.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
