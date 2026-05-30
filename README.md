@@ -46,3 +46,38 @@ Tambien puedes acceder al documento OpenAPI en JSON en:
 ```text
 http://localhost:8080/api/docs.json
 ```
+
+## Autenticación (login)
+
+El endpoint de autenticación ahora utiliza el nombre completo del usuario en lugar del identificador numérico.
+
+- Ruta: `POST /api/auth/login`
+- Payload (JSON):
+
+```json
+{
+	"nombre_completo": "Admin Principal Lina",
+	"pin": "1234"
+}
+```
+
+- Respuestas principales:
+	- `200` — Login exitoso. Devuelve un JWT y datos básicos del usuario:
+
+```json
+{
+	"token": "eyJ...",
+	"usuario": {
+		"nombre_completo": "Admin Principal Lina",
+		"rol": "admin"
+	}
+}
+```
+
+	- `400` — Faltan campos requeridos: `{ "error": "nombre_completo y pin requeridos" }`.
+	- `401` — Credenciales inválidas: `{ "error": "Credenciales inválidas" }`.
+
+- Notas:
+	- El servidor espera que `nombre_completo` identifique al usuario; si tu base de datos permite duplicados, considera usar un identificador único (como `email` o `username`).
+	- El JWT se firma con la variable de entorno `JWT_SECRET` y su expiración puede establecerse con `JWT_EXPIRES_IN` (por defecto `8h`).
+

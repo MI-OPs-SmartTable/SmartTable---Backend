@@ -3,6 +3,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
 const ROUTE_DEFINITIONS = [
+  { basePath: '/api/auth', routeFile: 'auth.js', tag: 'Auth' },
   { basePath: '/api/roles', routeFile: 'roles.js', tag: 'Roles' },
   { basePath: '/api/usuarios', routeFile: 'usuarios.js', tag: 'Usuarios' },
   { basePath: '/api/proveedores', routeFile: 'proveedores.js', tag: 'Proveedores' },
@@ -43,6 +44,10 @@ function buildPathParameters(openApiPath) {
 }
 
 function buildOperation(method, openApiPath, tag) {
+  const security = tag === 'Auth'
+    ? (openApiPath.endsWith('/logout') ? [{ BearerAuth: [] }] : [])
+    : [{ BearerAuth: [] }];
+
   const operation = {
     tags: [tag],
     summary: `${method.toUpperCase()} ${openApiPath}`,
@@ -52,8 +57,155 @@ function buildOperation(method, openApiPath, tag) {
       401: { description: 'Autenticacion requerida' },
       500: { description: 'Error interno' }
     },
-    security: [{ UsuarioIdHeader: [] }]
+    security
   };
+
+  if (tag === 'Auth' && method === 'post' && openApiPath.endsWith('/login')) {
+    operation.summary = 'Iniciar sesion';
+    operation.description = 'Autentica al usuario usando nombre_completo y pin. No requiere token.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['nombre_completo', 'pin'],
+            properties: {
+              nombre_completo: {
+                type: 'string',
+                example: 'Admin Principal Lina'
+              },
+              pin: {
+                oneOf: [
+                  { type: 'string', example: '1234' },
+                  { type: 'number', example: 1234 }
+                ],
+                description: 'PIN del usuario'
+              }
+            }
+          },
+          examples: {
+            login: {
+              value: {
+                nombre_completo: 'Admin Principal Lina',
+                pin: '1234'
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      200: {
+        description: 'Login exitoso',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                token: { type: 'string' },
+                usuario: {
+                  type: 'object',
+                  properties: {
+                    nombre_completo: { type: 'string' },
+                    rol: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: {
+        description: 'Faltan campos requeridos',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'nombre_completo y pin requeridos' }
+              }
+            }
+          }
+        }
+      },
+      401: {
+        description: 'Credenciales invalidas',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'Credenciales inválidas' }
+              }
+            }
+          }
+        }
+      },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Auth' && method === 'get' && openApiPath.endsWith('/usuarios')) {
+    operation.summary = 'Listar usuarios activos para login';
+    operation.description = 'Devuelve los usuarios activos disponibles para iniciar sesion.';
+    operation.responses = {
+      200: {
+        description: 'Usuarios activos',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  nombre_completo: { type: 'string' },
+                  rol: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Auth' && method === 'post' && openApiPath.endsWith('/logout')) {
+    operation.summary = 'Cerrar sesion';
+    operation.description = 'Finaliza la sesion activa del usuario autenticado.';
+    operation.responses = {
+      200: {
+        description: 'Sesion cerrada correctamente',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                message: { type: 'string', example: 'Sesión cerrada correctamente' }
+              }
+            }
+          }
+        }
+      },
+      404: {
+        description: 'No hay sesion activa',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'No hay sesión activa' }
+              }
+            }
+          }
+        }
+      },
+      401: { description: 'Autenticacion requerida' },
+      500: { description: 'Error interno' }
+    };
+  }
 
   const pathParameters = buildPathParameters(openApiPath);
 
@@ -61,7 +213,7 @@ function buildOperation(method, openApiPath, tag) {
     operation.parameters = pathParameters;
   }
 
-  if (['post', 'put', 'patch'].includes(method)) {
+  if (['post', 'put', 'patch'].includes(method) && !operation.requestBody) {
     operation.requestBody = {
       required: true,
       content: {
@@ -154,6 +306,7 @@ const swaggerDefinition = {
   ],
   tags: [
     { name: 'Sistema' },
+    { name: 'Auth' },
     { name: 'Roles' },
     { name: 'Usuarios' },
     { name: 'Proveedores' },
@@ -173,11 +326,11 @@ const swaggerDefinition = {
   ],
   components: {
     securitySchemes: {
-      UsuarioIdHeader: {
-        type: 'apiKey',
-        in: 'header',
-        name: 'x-usuario-id',
-        description: 'ID del usuario autenticado en SmartTable.'
+      BearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Token JWT del usuario autenticado en SmartTable.'
       }
     }
   },

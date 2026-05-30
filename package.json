@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node api/index.js",
-    "dev": "node --watch api/index.js",
+    "start": "set NODE_ENV=production&& node api/index.js",
+    "dev": "set NODE_ENV=development&& node --watch api/index.js",
+    "seed": "set NODE_ENV=development&& node api/src/database/seeds.js",
     "test": "jest --runInBand"
   },
   "jest": {
@@ -29,6 +30,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },

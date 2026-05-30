@@ -1,5 +1,32 @@
 const db = require('./db');
 
+function ensureSesionesCajaNullable() {
+  const tableInfo = db.prepare('PRAGMA table_info(sesiones)').all();
+  const cajaColumn = tableInfo.find((column) => column.name === 'caja_id');
+
+  if (!cajaColumn || cajaColumn.notnull === 0) {
+    return;
+  }
+
+  db.exec(`
+    ALTER TABLE sesiones RENAME TO sesiones_old;
+
+    CREATE TABLE sesiones (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) ,
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+      caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
+      inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
+      fin_at TEXT
+    );
+
+    INSERT INTO sesiones (id, usuario_id, caja_id, inicio_at, fin_at)
+    SELECT id, usuario_id, NULL, inicio_at, fin_at
+    FROM sesiones_old;
+
+    DROP TABLE sesiones_old;
+  `);
+}
+
 function runMigrations() {
   db.exec(`
     PRAGMA foreign_keys = ON;
@@ -98,9 +125,9 @@ function runMigrations() {
     CREATE TABLE IF NOT EXISTS sesiones (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
-      caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
+      caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
       inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
-      fin_at TEXT DEFAULT (datetime('now'))
+      fin_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS pedidos (
@@ -162,6 +189,8 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_caja_id ON gastos_caja (caja_id);
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_usuario_id ON gastos_caja (usuario_id);
   `);
+
+  ensureSesionesCajaNullable();
 }
 
 module.exports = { runMigrations };

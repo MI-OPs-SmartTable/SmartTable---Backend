@@ -1,4 +1,6 @@
 const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
 const ubicaciones = require('../models/ubicaciones');
 
 function isMissing(value) {
@@ -12,6 +14,8 @@ function handleError(res, err) {
 
   return res.status(500).json({ error: err.message });
 }
+
+router.use(auth, requireRol('admin'));
 
 router.get('/', (req, res) => {
   try {

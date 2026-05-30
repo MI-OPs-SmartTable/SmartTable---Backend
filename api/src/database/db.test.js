@@ -1,5 +1,5 @@
 const Database = require('better-sqlite3');
-const { randomUUID } = require('crypto');
+const { randomUUID, createHash } = require('crypto');
 
 const db = new Database(':memory:');
 
@@ -103,9 +103,9 @@ function runMigrations() {
     CREATE TABLE sesiones (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
-      caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
+      caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
       inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
-      fin_at TEXT DEFAULT (datetime('now'))
+      fin_at TEXT
     );
 
     CREATE TABLE pedidos (
@@ -162,9 +162,13 @@ function seedDatabase() {
   const luisId = randomUUID().replace(/-/g, '').toLowerCase();
   const mariaId = randomUUID().replace(/-/g, '').toLowerCase();
 
-  db.prepare("INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))").run(anaId, adminRolId, 'Ana García', 'ana@pos.com', 'HASH:1234', 1);
-  db.prepare("INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))").run(luisId, cajeroRolId, 'Luis Pérez', 'luis@pos.com', 'HASH:1234', 1);
-  db.prepare("INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))").run(mariaId, meseroRolId, 'María López', 'maria@pos.com', 'HASH:1234', 1);
+  function hashPin(pin) {
+    return createHash('sha256').update(String(pin), 'utf8').digest('hex');
+  }
+
+  db.prepare("INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))").run(anaId, adminRolId, 'Ana García', 'ana@pos.com', hashPin('1234'), 1);
+  db.prepare("INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))").run(luisId, cajeroRolId, 'Luis Pérez', 'luis@pos.com', hashPin('1234'), 1);
+  db.prepare("INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))").run(mariaId, meseroRolId, 'María López', 'maria@pos.com', hashPin('1234'), 1);
 
   const distribuidoraCentralId = randomUUID().replace(/-/g, '').toLowerCase();
   const lacteosDelValleId = randomUUID().replace(/-/g, '').toLowerCase();

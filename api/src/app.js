@@ -1,8 +1,20 @@
+const fs = require('fs');
+const path = require('path');
+
+const envFile = process.env.NODE_ENV === 'production'
+  ? '.env.production'
+  : process.env.NODE_ENV === 'development'
+    ? '.env.development'
+    : '.env';
+const envPath = path.join(process.cwd(), envFile);
+const fallbackEnvPath = path.join(process.cwd(), '.env');
+
+require('dotenv').config({ path: fs.existsSync(envPath) ? envPath : fallbackEnvPath });
+
 const express = require('express');
 const logger = require('./middlewares/logger');
 const notFound = require('./middlewares/notFound');
 const errorHandler = require('./middlewares/errorHandler');
-const auth = require('./middlewares/auth');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
@@ -18,6 +30,7 @@ app.get('/api/docs.json', (req, res) => {
 
 // No aplicar autenticación de forma global; cada ruta debe protegerse cuando corresponda
 
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/roles', require('./routes/roles'));
 app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/proveedores', require('./routes/proveedores'));

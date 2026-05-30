@@ -1,4 +1,7 @@
 const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
+const validarCajaAbierta = require('../middlewares/validarCajaAbierta');
 const itemsPedido = require('../models/items_pedido');
 
 function isMissing(value) {
@@ -13,6 +16,8 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
+router.use(auth, requireRol('admin', 'cajero', 'mesero'));
+
 router.get('/pedido/:pedido_id', (req, res) => {
   try {
     return res.status(200).json(itemsPedido.getByPedido(req.params.pedido_id));
@@ -22,15 +27,17 @@ router.get('/pedido/:pedido_id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  try {
-    if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
-    if (isMissing(req.body.variante_id)) return res.status(400).json({ error: 'Campo variante_id requerido' });
-    if (isMissing(req.body.cantidad)) return res.status(400).json({ error: 'Campo cantidad requerido' });
+  return validarCajaAbierta(req, res, () => {
+    try {
+      if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
+      if (isMissing(req.body.variante_id)) return res.status(400).json({ error: 'Campo variante_id requerido' });
+      if (isMissing(req.body.cantidad)) return res.status(400).json({ error: 'Campo cantidad requerido' });
 
-    return res.status(201).json(itemsPedido.create(req.body));
-  } catch (err) {
-    return handleError(res, err);
-  }
+      return res.status(201).json(itemsPedido.create(req.body));
+    } catch (err) {
+      return handleError(res, err);
+    }
+  });
 });
 
 router.patch('/:id/estado', (req, res) => {

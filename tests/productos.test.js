@@ -2,15 +2,25 @@
 jest.mock('../api/src/database/db', () => require('../api/src/database/db.test'));
 
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../api/src/app');
 const db = require('../api/src/database/db.test');
 
+async function getAdminAuthHeader() {
+  const token = jwt.sign({ id: db.seedData.anaId }, process.env.JWT_SECRET, { expiresIn: '8h' });
+  return `Bearer ${token}`;
+}
+
 describe('Productos', () => {
   let productoTemporalId;
+  let adminAuthHeader;
 
   beforeAll(async () => {
+    adminAuthHeader = await getAdminAuthHeader();
+
     const response = await request(app)
       .post('/api/productos')
+      .set('Authorization', adminAuthHeader)
       .send({
         categoria_id: db.seedData.bebidasCategoriaId,
         nombre: 'Producto Temporal',
@@ -21,7 +31,9 @@ describe('Productos', () => {
   });
 
   it('debe retornar un arreglo con productos activos', async () => {
-    const response = await request(app).get('/api/productos');
+    const response = await request(app)
+      .get('/api/productos')
+      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
@@ -35,6 +47,7 @@ describe('Productos', () => {
   it('debe crear el producto y retornar 201', async () => {
     const response = await request(app)
       .post('/api/productos')
+      .set('Authorization', adminAuthHeader)
       .send({
         categoria_id: db.seedData.postresCategoriaId,
         nombre: 'Cheesecake',
@@ -53,7 +66,9 @@ describe('Productos', () => {
   });
 
   it('debe incluir el arreglo de variantes al consultar un producto', async () => {
-    const response = await request(app).get(`/api/productos/${db.seedData.cafeId}`);
+    const response = await request(app)
+      .get(`/api/productos/${db.seedData.cafeId}`)
+      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(expect.objectContaining({
@@ -68,7 +83,9 @@ describe('Productos', () => {
   });
 
   it('debe desactivar el producto y retornar 204', async () => {
-    const response = await request(app).delete(`/api/productos/${productoTemporalId}`);
+    const response = await request(app)
+      .delete(`/api/productos/${productoTemporalId}`)
+      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(204);
     expect(response.text).toBe('');
