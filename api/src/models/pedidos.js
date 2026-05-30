@@ -91,9 +91,7 @@ function create(data) {
     ensureExists(db, 'mesas', mesaId, 'Mesa');
   }
 
-  if (items.length > 0) {
-    validateStockForItems(items);
-  }
+  validateStockForItems(items);
 
   const createPedidoTransaction = db.transaction((payload) => {
     const pedidoId = newId();
