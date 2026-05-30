@@ -81,7 +81,9 @@ describe('Usuarios', () => {
   });
 
   it('debe retornar 404 para un usuario desactivado', async () => {
-    const response = await request(app).get(`/api/usuarios/${usuarioTemporalId}`);
+    const response = await request(app)
+      .get(`/api/usuarios/${usuarioTemporalId}`)
+      .set('x-usuario-id', db.seedData.anaId);
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual(expect.objectContaining({ error: 'No encontrado' }));
