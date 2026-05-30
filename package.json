@@ -4,7 +4,14 @@
   "main": "index.js",
   "scripts": {
     "start": "node api/index.js",
-    "dev": "node --watch api/index.js"
+    "dev": "node --watch api/index.js",
+    "test": "jest --runInBand"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
   },
   "repository": {
     "type": "git",
@@ -21,6 +28,12 @@
     "better-sqlite3": "^12.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }

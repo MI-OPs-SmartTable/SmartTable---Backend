@@ -32,3 +32,17 @@ Si quieres instalar solo las dependencias principales de forma manual, también 
 ```bash
 npm install express cors dotenv better-sqlite3
 ```
+
+## Documentacion Swagger
+
+Con el servidor encendido, puedes ver la documentacion interactiva en:
+
+```text
+http://localhost:8080/api/docs
+```
+
+Tambien puedes acceder al documento OpenAPI en JSON en:
+
+```text
+http://localhost:8080/api/docs.json
+```

@@ -1,5 +1,8 @@
 require('dotenv').config();
 const app = require('./src/app');
+const { runMigrations } = require('./src/database/migrations');
+
+runMigrations();
 
 app.get('/', (req, res) => {
   res.send('Hello World!');

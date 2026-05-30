@@ -1,12 +1,12 @@
 const db = require('../database/db');
-const { ensureExists, ensureText, fetchById, newId, normalizeText } = require('./_utils');
+const { ensureExists, ensureText, fetchActiveById, fetchById, newId, normalizeText } = require('./_utils');
 
 function getAll() {
   return db.prepare('SELECT * FROM usuarios WHERE activo = 1 ORDER BY nombre_completo').all();
 }
 
 function getById(id) {
-  return fetchById(db, 'usuarios', id, 'Usuario');
+  return fetchActiveById(db, 'usuarios', id, 'Usuario');
 }
 
 function create(data) {
@@ -56,13 +56,13 @@ function update(id, data) {
 }
 
 function deactivate(id) {
-  const current = getById(id);
+  const current = fetchById(db, 'usuarios', id, 'Usuario');
   if (current.activo === 0) {
     return current;
   }
 
   db.prepare('UPDATE usuarios SET activo = 0 WHERE id = ?').run(id);
-  return getById(id);
+  return { ...current, activo: 0 };
 }
 
 module.exports = { create, deactivate, getAll, getById, update };
