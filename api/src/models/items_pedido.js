@@ -34,7 +34,10 @@ function create(data) {
   }
 
   const cantidad = ensurePositive(data.cantidad, 'La cantidad del item');
-  const variante = db.prepare('SELECT precio FROM variantes_producto WHERE id = ?').get(varianteId);
+  const variante = db.prepare('SELECT precio, activo FROM variantes_producto WHERE id = ?').get(varianteId);
+  if (!variante || variante.activo !== 1) {
+    throw new Error('Variante de producto no encontrada o inactiva: ' + varianteId);
+  }
   const precioUnitario = data.precio_unitario !== undefined
     ? ensureNonNegative(data.precio_unitario, 'El precio unitario del item')
     : Number(variante.precio);
