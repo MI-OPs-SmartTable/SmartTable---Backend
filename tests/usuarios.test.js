@@ -22,7 +22,9 @@ describe('Usuarios', () => {
   });
 
   it('debe retornar un arreglo con los usuarios activos', async () => {
-    const response = await request(app).get('/api/usuarios');
+    const response = await request(app)
+      .get('/api/usuarios')
+      .set('x-usuario-id', db.seedData.anaId);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
