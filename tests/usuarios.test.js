@@ -38,6 +38,7 @@ describe('Usuarios', () => {
   it('debe crear el usuario y retornar 201', async () => {
     const response = await request(app)
       .post('/api/usuarios')
+      .set('x-usuario-id', db.seedData.anaId)
       .send({
         rol_id: db.seedData.adminRolId,
         nombre_completo: 'Laura Prueba',
