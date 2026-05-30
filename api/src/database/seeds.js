@@ -133,7 +133,7 @@ function runSeeds() {
 
 module.exports = { runSeeds };
 
-runSeeds();
-
-// package.json script:
-// "seed": "node src/database/seeds.js"
+// Ejecutar seeds solo cuando se invoca directamente como script.
+if (require.main === module) {
+  runSeeds();
+}
