@@ -60,6 +60,7 @@ describe('Usuarios', () => {
   it('debe retornar 400 si falta el email', async () => {
     const response = await request(app)
       .post('/api/usuarios')
+      .set('x-usuario-id', db.seedData.anaId)
       .send({
         rol_id: db.seedData.adminRolId,
         nombre_completo: 'Sin Email',
