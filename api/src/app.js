@@ -16,8 +16,7 @@ app.get('/api/docs.json', (req, res) => {
   res.send(swaggerSpec);
 });
 
-// Requiere autenticación en todas las rutas /api/* excepto documentación
-app.use('/api', (req, res, next) => (req.path.startsWith('/docs') ? next() : auth(req, res, next)));
+// No aplicar autenticación de forma global; cada ruta debe protegerse cuando corresponda
 
 app.use('/api/roles', require('./routes/roles'));
 app.use('/api/usuarios', require('./routes/usuarios'));
