@@ -1,8 +1,31 @@
+const path = require('path');
+
+require('dotenv').config({ path: path.join(process.cwd(), '.env') });
+
+function normalizeEnvironment(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+
+  if (normalized === 'PRODUCTION') {
+    return 'PRODUCTION';
+  }
+
+  return 'DEVELOPMENT';
+}
+
+const environment = normalizeEnvironment(
+  process.env.environment || process.env.enviroment || process.env.NODE_ENV
+);
+
+process.env.environment = environment;
+process.env.NODE_ENV = environment === 'PRODUCTION' ? 'production' : 'development';
+process.env.JWT_SECRET = environment === 'PRODUCTION'
+  ? process.env.JWT_SECRET_PRODUCTION || process.env.JWT_SECRET
+  : process.env.JWT_SECRET_DEVELOPMENT || process.env.JWT_SECRET;
+
 const express = require('express');
 const logger = require('./middlewares/logger');
 const notFound = require('./middlewares/notFound');
 const errorHandler = require('./middlewares/errorHandler');
-const auth = require('./middlewares/auth');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
@@ -10,7 +33,17 @@ const app = express();
 app.use(logger);
 app.use(express.json());
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+const swaggerUiOptions = {
+  explorer: true,
+  swaggerOptions: {
+    persistAuthorization: true,
+    docExpansion: 'none',
+    displayRequestDuration: true,
+    defaultModelsExpandDepth: -1
+  }
+};
+
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions, null, 'SmartTable API Docs'));
 app.get('/api/docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
@@ -18,6 +51,7 @@ app.get('/api/docs.json', (req, res) => {
 
 // No aplicar autenticación de forma global; cada ruta debe protegerse cuando corresponda
 
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/roles', require('./routes/roles'));
 app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/proveedores', require('./routes/proveedores'));

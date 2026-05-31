@@ -1,4 +1,6 @@
 const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
 const productos = require('../models/productos');
 
 function isMissing(value) {
@@ -13,7 +15,9 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.get('/', (req, res) => {
+router.use(auth);
+
+router.get('/', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     return res.status(200).json(productos.getAll());
   } catch (err) {
@@ -21,7 +25,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     const producto = productos.getById(req.params.id);
     if (producto === null || producto === undefined) {
@@ -33,10 +37,12 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireRol('admin'), (req, res) => {
   try {
     if (isMissing(req.body.categoria_id)) return res.status(400).json({ error: 'Campo categoria_id requerido' });
     if (isMissing(req.body.nombre)) return res.status(400).json({ error: 'Campo nombre requerido' });
+    if (isMissing(req.body.precio) && req.body.precio !== 0) return res.status(400).json({ error: 'Campo precio requerido' });
+    if (!Array.isArray(req.body.insumos) || req.body.insumos.length === 0) return res.status(400).json({ error: 'Campo insumos requerido (arreglo no vacío)' });
 
     return res.status(201).json(productos.create(req.body));
   } catch (err) {
@@ -44,7 +50,7 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRol('admin'), (req, res) => {
   try {
     return res.status(200).json(productos.update(req.params.id, req.body || {}));
   } catch (err) {
@@ -52,7 +58,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRol('admin'), (req, res) => {
   try {
     productos.deactivate(req.params.id);
     return res.status(204).send();

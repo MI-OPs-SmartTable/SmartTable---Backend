@@ -1,4 +1,6 @@
 const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
 const mesas = require('../models/mesas');
 
 function isMissing(value) {
@@ -13,7 +15,9 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.get('/', (req, res) => {
+router.use(auth);
+
+router.get('/', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     return res.status(200).json(mesas.getAll());
   } catch (err) {
@@ -21,7 +25,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/ubicacion/:ubicacion_id', (req, res) => {
+router.get('/ubicacion/:ubicacion_id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     return res.status(200).json(mesas.getByUbicacion(req.params.ubicacion_id));
   } catch (err) {
@@ -29,7 +33,7 @@ router.get('/ubicacion/:ubicacion_id', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     const mesa = mesas.getById(req.params.id);
     if (mesa === null || mesa === undefined) {
@@ -41,7 +45,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireRol('admin', 'cajero'), (req, res) => {
   try {
     if (isMissing(req.body.ubicacion_id)) return res.status(400).json({ error: 'Campo ubicacion_id requerido' });
     if (isMissing(req.body.nombre)) return res.status(400).json({ error: 'Campo nombre requerido' });
@@ -52,7 +56,7 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRol('admin', 'cajero'), (req, res) => {
   try {
     return res.status(200).json(mesas.update(req.params.id, req.body || {}));
   } catch (err) {
@@ -60,7 +64,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.patch('/:id/estado', (req, res) => {
+router.patch('/:id/estado', requireRol('admin', 'cajero'), (req, res) => {
   try {
     if (isMissing(req.body.estado)) return res.status(400).json({ error: 'Campo estado requerido' });
 

@@ -33,6 +33,22 @@ Si quieres instalar solo las dependencias principales de forma manual, también 
 npm install express cors dotenv better-sqlite3
 ```
 
+## Configuración de entorno
+
+El proyecto usa un solo archivo `.env` en la raíz. Define la variable `environment` con uno de estos valores:
+
+```env
+environment=DEVELOPMENT
+```
+
+o
+
+```env
+environment=PRODUCTION
+```
+
+Según ese valor, la app toma automáticamente el secreto correspondiente desde `JWT_SECRET_DEVELOPMENT` o `JWT_SECRET_PRODUCTION` y también ajusta `NODE_ENV` para mantener compatibilidad con el resto del código.
+
 ## Documentacion Swagger
 
 Con el servidor encendido, puedes ver la documentacion interactiva en:
@@ -46,3 +62,38 @@ Tambien puedes acceder al documento OpenAPI en JSON en:
 ```text
 http://localhost:8080/api/docs.json
 ```
+
+## Autenticación (login)
+
+El endpoint de autenticación ahora utiliza el nombre completo del usuario en lugar del identificador numérico.
+
+- Ruta: `POST /api/auth/login`
+- Payload (JSON):
+
+```json
+{
+	"nombre_completo": "Admin Principal Lina",
+	"pin": "1234"
+}
+```
+
+- Respuestas principales:
+	- `200` — Login exitoso. Devuelve un JWT y datos básicos del usuario:
+
+```json
+{
+	"token": "eyJ...",
+	"usuario": {
+		"nombre_completo": "Admin Principal Lina",
+		"rol": "admin"
+	}
+}
+```
+
+	- `400` — Faltan campos requeridos: `{ "error": "nombre_completo y pin requeridos" }`.
+	- `401` — Credenciales inválidas: `{ "error": "Credenciales inválidas" }`.
+
+- Notas:
+	- El servidor espera que `nombre_completo` identifique al usuario; si tu base de datos permite duplicados, considera usar un identificador único (como `email` o `username`).
+	- El JWT se firma con la variable de entorno `JWT_SECRET` y su expiración puede establecerse con `JWT_EXPIRES_IN` (por defecto `8h`).
+

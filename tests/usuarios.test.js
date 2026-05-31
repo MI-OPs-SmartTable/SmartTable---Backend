@@ -2,15 +2,25 @@
 jest.mock('../api/src/database/db', () => require('../api/src/database/db.test'));
 
 const request = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../api/src/app');
 const db = require('../api/src/database/db.test');
 
+async function getAdminAuthHeader() {
+  const token = jwt.sign({ id: db.seedData.anaId }, process.env.JWT_SECRET, { expiresIn: '8h' });
+  return `Bearer ${token}`;
+}
+
 describe('Usuarios', () => {
   let usuarioTemporalId;
+  let adminAuthHeader;
 
   beforeAll(async () => {
+    adminAuthHeader = await getAdminAuthHeader();
+
     const response = await request(app)
       .post('/api/usuarios')
+      .set('Authorization', adminAuthHeader)
       .send({
         rol_id: db.seedData.cajeroRolId,
         nombre_completo: 'Carlos Test',
@@ -24,7 +34,7 @@ describe('Usuarios', () => {
   it('debe retornar un arreglo con los usuarios activos', async () => {
     const response = await request(app)
       .get('/api/usuarios')
-      .set('x-usuario-id', db.seedData.anaId);
+      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
@@ -38,7 +48,7 @@ describe('Usuarios', () => {
   it('debe crear el usuario y retornar 201', async () => {
     const response = await request(app)
       .post('/api/usuarios')
-      .set('x-usuario-id', db.seedData.anaId)
+      .set('Authorization', adminAuthHeader)
       .send({
         rol_id: db.seedData.adminRolId,
         nombre_completo: 'Laura Prueba',
@@ -49,18 +59,17 @@ describe('Usuarios', () => {
     expect(response.status).toBe(201);
     expect(response.body).toEqual(expect.objectContaining({
       id: expect.any(String),
-      rol_id: db.seedData.adminRolId,
       nombre_completo: 'Laura Prueba',
       email: 'laura.prueba@pos.com',
-      pin_hash: 'HASH:1234',
       activo: 1,
+      rol: 'admin',
     }));
   });
 
   it('debe retornar 400 si falta el email', async () => {
     const response = await request(app)
       .post('/api/usuarios')
-      .set('x-usuario-id', db.seedData.anaId)
+      .set('Authorization', adminAuthHeader)
       .send({
         rol_id: db.seedData.adminRolId,
         nombre_completo: 'Sin Email',
@@ -74,7 +83,7 @@ describe('Usuarios', () => {
   it('debe desactivar el usuario y retornar 204', async () => {
     const response = await request(app)
       .delete(`/api/usuarios/${usuarioTemporalId}`)
-      .set('x-usuario-id', db.seedData.anaId);
+      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(204);
     expect(response.text).toBe('');
@@ -83,7 +92,7 @@ describe('Usuarios', () => {
   it('debe retornar 404 para un usuario desactivado', async () => {
     const response = await request(app)
       .get(`/api/usuarios/${usuarioTemporalId}`)
-      .set('x-usuario-id', db.seedData.anaId);
+      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual(expect.objectContaining({ error: 'No encontrado' }));

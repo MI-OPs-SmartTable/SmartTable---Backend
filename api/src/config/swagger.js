@@ -3,6 +3,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
 const ROUTE_DEFINITIONS = [
+  { basePath: '/api/auth', routeFile: 'auth.js', tag: 'Auth' },
   { basePath: '/api/roles', routeFile: 'roles.js', tag: 'Roles' },
   { basePath: '/api/usuarios', routeFile: 'usuarios.js', tag: 'Usuarios' },
   { basePath: '/api/proveedores', routeFile: 'proveedores.js', tag: 'Proveedores' },
@@ -43,6 +44,10 @@ function buildPathParameters(openApiPath) {
 }
 
 function buildOperation(method, openApiPath, tag) {
+  const security = tag === 'Auth'
+    ? (openApiPath.endsWith('/logout') ? [{ BearerAuth: [] }] : [])
+    : [{ BearerAuth: [] }];
+
   const operation = {
     tags: [tag],
     summary: `${method.toUpperCase()} ${openApiPath}`,
@@ -52,8 +57,235 @@ function buildOperation(method, openApiPath, tag) {
       401: { description: 'Autenticacion requerida' },
       500: { description: 'Error interno' }
     },
-    security: [{ UsuarioIdHeader: [] }]
+    security
   };
+
+  if (tag === 'Auth' && method === 'post' && openApiPath.endsWith('/login')) {
+    operation.summary = 'Iniciar sesion';
+    operation.description = 'Autentica al usuario usando nombre_completo y pin. No requiere token.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['nombre_completo', 'pin'],
+            properties: {
+              nombre_completo: {
+                type: 'string',
+                example: 'Admin Principal Lina'
+              },
+              pin: {
+                oneOf: [
+                  { type: 'string', example: '1234' },
+                  { type: 'number', example: 1234 }
+                ],
+                description: 'PIN del usuario'
+              }
+            }
+          },
+          examples: {
+            login: {
+              value: {
+                nombre_completo: 'Admin Principal Lina',
+                pin: '1234'
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      200: {
+        description: 'Login exitoso',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                token: { type: 'string' },
+                usuario: {
+                  type: 'object',
+                  properties: {
+                    nombre_completo: { type: 'string' },
+                    rol: { type: 'string' }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: {
+        description: 'Faltan campos requeridos',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'nombre_completo y pin requeridos' }
+              }
+            }
+          }
+        }
+      },
+      401: {
+        description: 'Credenciales invalidas',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'Credenciales inválidas' }
+              }
+            }
+          }
+        }
+      },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  // Documentacion especifica para crear productos: incluir precio e insumos
+  if (tag === 'Productos' && method === 'post' && openApiPath === '/api/productos') {
+    operation.summary = 'Crear producto (con variante por defecto e insumos)';
+    operation.description = 'Crea un producto y automáticamente crea una variante por defecto con el `precio` indicado. Además crea las recetas que enlazan la variante con los `insumos` proporcionados.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['categoria_id', 'nombre', 'precio', 'insumos'],
+            properties: {
+              categoria_id: { type: 'string', example: 'c3f1a2...' },
+              nombre: { type: 'string', example: 'Cheesecake' },
+              descripcion: { type: 'string', example: 'Postre frio de queso crema' },
+              precio: { type: 'number', minimum: 0, example: 5000 },
+              variante_nombre: { type: 'string', example: 'Porcion unica' },
+              insumos: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['insumo_id', 'cantidad'],
+                  properties: {
+                    insumo_id: { type: 'string', example: 'a1b2c3...' },
+                    cantidad: { type: 'number', minimum: 0.0001, example: 40 }
+                  }
+                }
+              }
+            }
+          },
+          examples: {
+            producto_ejemplo: {
+              value: {
+                categoria_id: 'postresCategoriaId',
+                nombre: 'Cheesecake',
+                descripcion: 'Postre frío de queso crema',
+                precio: 5000,
+                insumos: [ { insumo_id: 'chocolateId', cantidad: 40 } ]
+              }
+            }
+          }
+        }
+      }
+    };
+
+    operation.responses = {
+      201: {
+        description: 'Producto creado',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                categoria_id: { type: 'string' },
+                nombre: { type: 'string' },
+                descripcion: { type: 'string' },
+                activo: { type: 'integer' },
+                variantes: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      nombre: { type: 'string' },
+                      precio: { type: 'number' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Solicitud inválida' },
+      401: { description: 'Autenticación requerida' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Auth' && method === 'get' && openApiPath.endsWith('/usuarios')) {
+    operation.summary = 'Listar usuarios activos para login';
+    operation.description = 'Devuelve los usuarios activos disponibles para iniciar sesion.';
+    operation.responses = {
+      200: {
+        description: 'Usuarios activos',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  nombre_completo: { type: 'string' },
+                  rol: { type: 'string' }
+                }
+              }
+            }
+          }
+        }
+      },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Auth' && method === 'post' && openApiPath.endsWith('/logout')) {
+    operation.summary = 'Cerrar sesion';
+    operation.description = 'Finaliza la sesion activa del usuario autenticado.';
+    operation.responses = {
+      200: {
+        description: 'Sesion cerrada correctamente',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                message: { type: 'string', example: 'Sesión cerrada correctamente' }
+              }
+            }
+          }
+        }
+      },
+      404: {
+        description: 'No hay sesion activa',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'No hay sesión activa' }
+              }
+            }
+          }
+        }
+      },
+      401: { description: 'Autenticacion requerida' },
+      500: { description: 'Error interno' }
+    };
+  }
 
   const pathParameters = buildPathParameters(openApiPath);
 
@@ -61,7 +293,7 @@ function buildOperation(method, openApiPath, tag) {
     operation.parameters = pathParameters;
   }
 
-  if (['post', 'put', 'patch'].includes(method)) {
+  if (['post', 'put', 'patch'].includes(method) && !operation.requestBody) {
     operation.requestBody = {
       required: true,
       content: {
@@ -154,6 +386,7 @@ const swaggerDefinition = {
   ],
   tags: [
     { name: 'Sistema' },
+    { name: 'Auth' },
     { name: 'Roles' },
     { name: 'Usuarios' },
     { name: 'Proveedores' },
@@ -173,11 +406,11 @@ const swaggerDefinition = {
   ],
   components: {
     securitySchemes: {
-      UsuarioIdHeader: {
-        type: 'apiKey',
-        in: 'header',
-        name: 'x-usuario-id',
-        description: 'ID del usuario autenticado en SmartTable.'
+      BearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Token JWT del usuario autenticado en SmartTable.'
       }
     }
   },

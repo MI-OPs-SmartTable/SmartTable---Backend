@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node api/index.js",
     "dev": "node --watch api/index.js",
+    "seed": "node api/src/database/seeds.js",
     "test": "jest --runInBand"
   },
   "jest": {
@@ -29,6 +30,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },

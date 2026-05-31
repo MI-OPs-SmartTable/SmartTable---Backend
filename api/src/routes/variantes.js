@@ -1,4 +1,6 @@
 const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
 const variantes = require('../models/variantes_producto');
 
 function isMissing(value) {
@@ -13,7 +15,9 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.get('/producto/:producto_id', (req, res) => {
+router.use(auth);
+
+router.get('/producto/:producto_id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     return res.status(200).json(variantes.getByProducto(req.params.producto_id));
   } catch (err) {
@@ -21,7 +25,7 @@ router.get('/producto/:producto_id', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     const variante = variantes.getById(req.params.id);
     if (variante === null || variante === undefined) {
@@ -33,7 +37,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireRol('admin'), (req, res) => {
   try {
     if (isMissing(req.body.producto_id)) return res.status(400).json({ error: 'Campo producto_id requerido' });
     if (isMissing(req.body.nombre)) return res.status(400).json({ error: 'Campo nombre requerido' });
@@ -45,7 +49,7 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRol('admin'), (req, res) => {
   try {
     return res.status(200).json(variantes.update(req.params.id, req.body || {}));
   } catch (err) {
@@ -53,7 +57,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRol('admin'), (req, res) => {
   try {
     variantes.deactivate(req.params.id);
     return res.status(204).send();

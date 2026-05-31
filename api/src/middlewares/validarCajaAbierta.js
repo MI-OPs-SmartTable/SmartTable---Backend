@@ -2,20 +2,11 @@ const db = require('../database/db');
 
 function validarCajaAbierta(req, res, next) {
   try {
-    const { caja_id: cajaId } = req.body || {};
-
-    if (!cajaId) {
-      return res.status(400).json({ error: 'caja_id requerido' });
-    }
-
-    const caja = db.prepare('SELECT * FROM cajas WHERE id = ?').get(cajaId);
+    const cajaId = req.body && req.body.caja_id;
+    const caja = db.prepare('SELECT * FROM cajas WHERE id = ? AND estado = ?').get(cajaId, 'abierta');
 
     if (!caja) {
-      return res.status(404).json({ error: 'Caja no encontrada' });
-    }
-
-    if (caja.estado !== 'abierta') {
-      return res.status(400).json({ error: 'La caja no está abierta' });
+      return res.status(400).json({ error: 'No hay una caja abierta. Debe abrir una caja antes de continuar.' });
     }
 
     req.caja = caja;

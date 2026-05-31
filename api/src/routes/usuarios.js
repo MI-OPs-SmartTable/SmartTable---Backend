@@ -1,5 +1,12 @@
 const router = require('express').Router();
+const db = require('../database/db');
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
 const usuarios = require('../models/usuarios');
+
+const isDev = process.env.NODE_ENV !== 'production';
+const adminOnly = [auth, requireRol('admin')];
+const allowedProductionRoles = new Set(['admin', 'cajero', 'mesero', 'inventario']);
 
 function isMissing(value) {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
@@ -13,54 +20,83 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.get('/', (req, res) => {
+function sanitizeUsuario(usuario) {
+  if (!usuario) {
+    return usuario;
+  }
+
+  const { pin_hash, rol_id, ...resto } = usuario;
+  const rol = rol_id ? db.prepare('SELECT nombre FROM roles WHERE id = ?').get(rol_id) : null;
+
+  return {
+    ...resto,
+    rol: rol ? rol.nombre : usuario.rol,
+  };
+}
+
+function canAssignRoleInProduction(rolId) {
+  const rol = db.prepare('SELECT nombre FROM roles WHERE id = ?').get(rolId);
+  return rol ? allowedProductionRoles.has(rol.nombre) : false;
+}
+
+function getAll(req, res) {
   try {
-    return res.status(200).json(usuarios.getAll());
+    return res.status(200).json(usuarios.getAll().map(sanitizeUsuario));
   } catch (err) {
     return handleError(res, err);
   }
-});
+}
 
-router.get('/:id', (req, res) => {
+function getById(req, res) {
   try {
     const usuario = usuarios.getById(req.params.id);
     if (usuario === null || usuario === undefined) {
       return res.status(404).json({ error: 'No encontrado' });
     }
-    return res.status(200).json(usuario);
+    return res.status(200).json(sanitizeUsuario(usuario));
   } catch (err) {
     return handleError(res, err);
   }
-});
+}
 
-router.post('/', (req, res) => {
+function createUsuario(req, res) {
   try {
     if (isMissing(req.body.rol_id)) return res.status(400).json({ error: 'Campo rol_id requerido' });
     if (isMissing(req.body.nombre_completo)) return res.status(400).json({ error: 'Campo nombre_completo requerido' });
     if (isMissing(req.body.email)) return res.status(400).json({ error: 'Campo email requerido' });
     if (isMissing(req.body.pin_hash)) return res.status(400).json({ error: 'Campo pin_hash requerido' });
 
-    return res.status(201).json(usuarios.create(req.body));
+    if (!isDev && !canAssignRoleInProduction(req.body.rol_id)) {
+      return res.status(400).json({ error: 'Rol no válido' });
+    }
+
+    return res.status(201).json(sanitizeUsuario(usuarios.create(req.body)));
   } catch (err) {
     return handleError(res, err);
   }
-});
+}
 
-router.put('/:id', (req, res) => {
+function updateUsuario(req, res) {
   try {
-    return res.status(200).json(usuarios.update(req.params.id, req.body || {}));
+    return res.status(200).json(sanitizeUsuario(usuarios.update(req.params.id, req.body || {})));
   } catch (err) {
     return handleError(res, err);
   }
-});
+}
 
-router.delete('/:id', (req, res) => {
+function deleteUsuario(req, res) {
   try {
     usuarios.deactivate(req.params.id);
     return res.status(204).send();
   } catch (err) {
     return handleError(res, err);
   }
-});
+}
+
+router.get('/', ...adminOnly, getAll);
+router.get('/:id', ...adminOnly, getById);
+router.post('/', ...(isDev ? [] : adminOnly), createUsuario);
+router.put('/:id', ...adminOnly, updateUsuario);
+router.delete('/:id', ...adminOnly, deleteUsuario);
 
 module.exports = router;

@@ -1,4 +1,7 @@
 const router = require('express').Router();
+const auth = require('../middlewares/auth');
+const { requireRol } = auth;
+const validarCajaAbierta = require('../middlewares/validarCajaAbierta');
 const pedidos = require('../models/pedidos');
 
 function isMissing(value) {
@@ -12,6 +15,8 @@ function handleError(res, err) {
 
   return res.status(500).json({ error: err.message });
 }
+
+router.use(auth, requireRol('admin', 'cajero', 'mesero'));
 
 router.get('/', (req, res) => {
   try {
@@ -34,14 +39,15 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  try {
-    if (isMissing(req.body.usuario_id)) return res.status(400).json({ error: 'Campo usuario_id requerido' });
-    if (isMissing(req.body.caja_id)) return res.status(400).json({ error: 'Campo caja_id requerido' });
+  return validarCajaAbierta(req, res, () => {
+    try {
+      if (isMissing(req.body.usuario_id)) return res.status(400).json({ error: 'Campo usuario_id requerido' });
 
-    return res.status(201).json(pedidos.create(req.body));
-  } catch (err) {
-    return handleError(res, err);
-  }
+      return res.status(201).json(pedidos.create(req.body));
+    } catch (err) {
+      return handleError(res, err);
+    }
+  });
 });
 
 router.patch('/:id/estado', (req, res) => {
