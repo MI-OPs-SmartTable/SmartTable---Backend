@@ -25,6 +25,8 @@ describe('Productos', () => {
         categoria_id: db.seedData.bebidasCategoriaId,
         nombre: 'Producto Temporal',
         descripcion: 'Producto usado para pruebas',
+        precio: 0,
+        insumos: [ { insumo_id: db.seedData.cafeMolidoId, cantidad: 1 } ],
       });
 
     productoTemporalId = response.body.id;
@@ -52,6 +54,8 @@ describe('Productos', () => {
         categoria_id: db.seedData.postresCategoriaId,
         nombre: 'Cheesecake',
         descripcion: 'Postre frío de queso crema',
+        precio: 5000,
+        insumos: [ { insumo_id: db.seedData.chocolateId, cantidad: 40 } ],
       });
 
     expect(response.status).toBe(201);
@@ -61,8 +65,9 @@ describe('Productos', () => {
       nombre: 'Cheesecake',
       descripcion: 'Postre frío de queso crema',
       activo: 1,
-      variantes: [],
     }));
+    expect(Array.isArray(response.body.variantes)).toBe(true);
+    expect(response.body.variantes.length).toBeGreaterThanOrEqual(1);
   });
 
   it('debe incluir el arreglo de variantes al consultar un producto', async () => {

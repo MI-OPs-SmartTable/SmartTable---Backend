@@ -1,5 +1,5 @@
 const db = require('../database/db');
-const { ensureActive, ensureExists, ensureText, fetchById, newId, normalizeText } = require('./_utils');
+const { ensureActive, ensureExists, ensureText, fetchById, newId, normalizeText, ensureNonNegative, ensurePositive } = require('./_utils');
 
 function getAll() {
   return db.prepare('SELECT * FROM productos WHERE activo = 1 ORDER BY nombre').all();
@@ -18,13 +18,68 @@ function create(data) {
   const nombre = ensureText(data.nombre, 'El nombre del producto');
   const descripcion = normalizeText(data.descripcion);
 
+  // precio obligatorio al crear según el nuevo diseño (permitir 0)
+  const precio = typeof data.precio === 'undefined' ? null : data.precio;
+  if (precio === null) {
+    throw new Error('El precio del producto es obligatorio');
+  }
+  const precioValid = ensureNonNegative(precio, 'El precio');
+
+  // insumos obligatorios: array de { insumo_id, cantidad }
+  const insumos = data.insumos;
+  if (!Array.isArray(insumos) || insumos.length === 0) {
+    throw new Error('Los insumos (ingredientes) son obligatorios y deben ser un arreglo no vacío');
+  }
+
   const id = newId();
-  db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, activo) VALUES (?, ?, ?, ?, 1)').run(
-    id,
-    categoriaId,
-    nombre,
-    descripcion
-  );
+
+  // Usar transacción para insertar producto, variante por defecto y recetas
+  const createTx = db.transaction(() => {
+    db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, activo) VALUES (?, ?, ?, ?, 1)').run(
+      id,
+      categoriaId,
+      nombre,
+      descripcion
+    );
+
+    // Crear una variante por defecto del producto que contiene el precio
+    const varianteId = newId();
+    const varianteNombre = data.variante_nombre || nombre;
+    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, 1)').run(
+      varianteId,
+      id,
+      varianteNombre,
+      precioValid
+    );
+
+    // Insertar recetas (insumos necesarios) para la variante
+    for (const item of insumos) {
+      const insumoId = item.insumo_id || item.id || null;
+      if (!insumoId) {
+        throw new Error('Cada insumo debe incluir insumo_id');
+      }
+
+      // validar existencia del insumo
+      ensureExists(db, 'insumos', insumoId, 'Insumo');
+
+      const cantidad = item.cantidad !== undefined ? item.cantidad : item.cantidad_requerida;
+      if (cantidad === undefined || cantidad === null) {
+        throw new Error('Cada insumo debe incluir la cantidad requerida');
+      }
+
+      const cantidadValid = ensurePositive(cantidad, 'La cantidad requerida');
+
+      const recetaId = newId();
+      db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(
+        recetaId,
+        varianteId,
+        insumoId,
+        cantidadValid
+      );
+    }
+  });
+
+  createTx();
 
   return getById(id);
 }

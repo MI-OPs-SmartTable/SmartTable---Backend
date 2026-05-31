@@ -20,7 +20,7 @@ function create(data) {
 
   const montoApertura = ensureNonNegative(data.monto_apertura ?? 0, 'El monto de apertura');
   const montoCierre = ensureNonNegative(data.monto_cierre ?? 0, 'El monto de cierre');
-  const aperturaAt = data.apertura_at ? String(data.apertura_at).trim() : null;
+  const aperturaAt = data.apertura_at ? String(data.apertura_at).trim() : new Date().toISOString().replace('T', ' ').replace('Z', '');
   const cierreAt = data.cierre_at ? String(data.cierre_at).trim() : null;
   const estado = data.estado !== undefined ? ensureText(data.estado, 'El estado de la caja') : 'abierta';
 
@@ -34,6 +34,15 @@ function create(data) {
   ).run(id, usuarioId, montoApertura, montoCierre, aperturaAt || undefined, cierreAt || undefined, estado);
 
   return getById(id);
+}
+
+function getMontoCierreAutomatico(cajaId) {
+  const caja = getById(cajaId);
+  const ventas = db.prepare(
+    'SELECT COALESCE(SUM(total), 0) AS total FROM ventas WHERE caja_id = ?'
+  ).get(cajaId);
+
+  return Number(caja.monto_apertura || 0) + Number(ventas.total || 0);
 }
 
 function abrir(data) {
@@ -76,8 +85,8 @@ function close(id, data) {
     return current;
   }
 
-  const montoCierre = data && data.monto_cierre !== undefined ? ensureNonNegative(data.monto_cierre, 'El monto de cierre') : current.monto_cierre;
-  const cierreAt = data && data.cierre_at !== undefined ? String(data.cierre_at).trim() : current.cierre_at;
+  const montoCierre = getMontoCierreAutomatico(id);
+  const cierreAt = new Date().toISOString().replace('T', ' ').replace('Z', '');
 
   db.prepare("UPDATE cajas SET monto_cierre = ?, cierre_at = ?, estado = 'cerrada' WHERE id = ?").run(montoCierre, cierreAt, id);
   return getById(id);

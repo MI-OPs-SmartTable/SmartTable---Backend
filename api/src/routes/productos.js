@@ -41,6 +41,8 @@ router.post('/', requireRol('admin'), (req, res) => {
   try {
     if (isMissing(req.body.categoria_id)) return res.status(400).json({ error: 'Campo categoria_id requerido' });
     if (isMissing(req.body.nombre)) return res.status(400).json({ error: 'Campo nombre requerido' });
+    if (isMissing(req.body.precio) && req.body.precio !== 0) return res.status(400).json({ error: 'Campo precio requerido' });
+    if (!Array.isArray(req.body.insumos) || req.body.insumos.length === 0) return res.status(400).json({ error: 'Campo insumos requerido (arreglo no vacío)' });
 
     return res.status(201).json(productos.create(req.body));
   } catch (err) {

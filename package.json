@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "set NODE_ENV=production&& node api/index.js",
-    "dev": "set NODE_ENV=development&& node --watch api/index.js",
-    "seed": "set NODE_ENV=development&& node api/src/database/seeds.js",
+    "start": "node api/index.js",
+    "dev": "node --watch api/index.js",
+    "seed": "node api/src/database/seeds.js",
     "test": "jest --runInBand"
   },
   "jest": {

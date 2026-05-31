@@ -33,6 +33,22 @@ Si quieres instalar solo las dependencias principales de forma manual, también 
 npm install express cors dotenv better-sqlite3
 ```
 
+## Configuración de entorno
+
+El proyecto usa un solo archivo `.env` en la raíz. Define la variable `environment` con uno de estos valores:
+
+```env
+environment=DEVELOPMENT
+```
+
+o
+
+```env
+environment=PRODUCTION
+```
+
+Según ese valor, la app toma automáticamente el secreto correspondiente desde `JWT_SECRET_DEVELOPMENT` o `JWT_SECRET_PRODUCTION` y también ajusta `NODE_ENV` para mantener compatibilidad con el resto del código.
+
 ## Documentacion Swagger
 
 Con el servidor encendido, puedes ver la documentacion interactiva en:

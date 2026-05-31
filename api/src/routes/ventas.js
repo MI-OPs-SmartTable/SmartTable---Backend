@@ -2,7 +2,6 @@ const router = require('express').Router();
 const auth = require('../middlewares/auth');
 const { requireRol } = auth;
 const validarCajaAbierta = require('../middlewares/validarCajaAbierta');
-const validarStock = require('../middlewares/validarStock');
 const ventas = require('../models/ventas');
 
 function isMissing(value) {
@@ -40,7 +39,7 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  return validarCajaAbierta(req, res, () => validarStock(req, res, () => {
+  return validarCajaAbierta(req, res, () => {
     try {
       if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
       if (req.body.pagos === undefined || req.body.pagos === null || typeof req.body.pagos !== 'object') {
@@ -56,7 +55,7 @@ router.post('/', (req, res) => {
     } catch (err) {
       return handleError(res, err);
     }
-  }));
+  });
 });
 
 module.exports = router;

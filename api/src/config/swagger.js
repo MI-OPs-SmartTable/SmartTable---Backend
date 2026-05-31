@@ -146,6 +146,86 @@ function buildOperation(method, openApiPath, tag) {
     };
   }
 
+  // Documentacion especifica para crear productos: incluir precio e insumos
+  if (tag === 'Productos' && method === 'post' && openApiPath === '/api/productos') {
+    operation.summary = 'Crear producto (con variante por defecto e insumos)';
+    operation.description = 'Crea un producto y automáticamente crea una variante por defecto con el `precio` indicado. Además crea las recetas que enlazan la variante con los `insumos` proporcionados.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['categoria_id', 'nombre', 'precio', 'insumos'],
+            properties: {
+              categoria_id: { type: 'string', example: 'c3f1a2...' },
+              nombre: { type: 'string', example: 'Cheesecake' },
+              descripcion: { type: 'string', example: 'Postre frio de queso crema' },
+              precio: { type: 'number', minimum: 0, example: 5000 },
+              variante_nombre: { type: 'string', example: 'Porcion unica' },
+              insumos: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['insumo_id', 'cantidad'],
+                  properties: {
+                    insumo_id: { type: 'string', example: 'a1b2c3...' },
+                    cantidad: { type: 'number', minimum: 0.0001, example: 40 }
+                  }
+                }
+              }
+            }
+          },
+          examples: {
+            producto_ejemplo: {
+              value: {
+                categoria_id: 'postresCategoriaId',
+                nombre: 'Cheesecake',
+                descripcion: 'Postre frío de queso crema',
+                precio: 5000,
+                insumos: [ { insumo_id: 'chocolateId', cantidad: 40 } ]
+              }
+            }
+          }
+        }
+      }
+    };
+
+    operation.responses = {
+      201: {
+        description: 'Producto creado',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                categoria_id: { type: 'string' },
+                nombre: { type: 'string' },
+                descripcion: { type: 'string' },
+                activo: { type: 'integer' },
+                variantes: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      nombre: { type: 'string' },
+                      precio: { type: 'number' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Solicitud inválida' },
+      401: { description: 'Autenticación requerida' },
+      500: { description: 'Error interno' }
+    };
+  }
+
   if (tag === 'Auth' && method === 'get' && openApiPath.endsWith('/usuarios')) {
     operation.summary = 'Listar usuarios activos para login';
     operation.description = 'Devuelve los usuarios activos disponibles para iniciar sesion.';

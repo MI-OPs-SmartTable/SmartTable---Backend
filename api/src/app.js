@@ -1,15 +1,26 @@
-const fs = require('fs');
 const path = require('path');
 
-const envFile = process.env.NODE_ENV === 'production'
-  ? '.env.production'
-  : process.env.NODE_ENV === 'development'
-    ? '.env.development'
-    : '.env';
-const envPath = path.join(process.cwd(), envFile);
-const fallbackEnvPath = path.join(process.cwd(), '.env');
+require('dotenv').config({ path: path.join(process.cwd(), '.env') });
 
-require('dotenv').config({ path: fs.existsSync(envPath) ? envPath : fallbackEnvPath });
+function normalizeEnvironment(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+
+  if (normalized === 'PRODUCTION') {
+    return 'PRODUCTION';
+  }
+
+  return 'DEVELOPMENT';
+}
+
+const environment = normalizeEnvironment(
+  process.env.environment || process.env.enviroment || process.env.NODE_ENV
+);
+
+process.env.environment = environment;
+process.env.NODE_ENV = environment === 'PRODUCTION' ? 'production' : 'development';
+process.env.JWT_SECRET = environment === 'PRODUCTION'
+  ? process.env.JWT_SECRET_PRODUCTION || process.env.JWT_SECRET
+  : process.env.JWT_SECRET_DEVELOPMENT || process.env.JWT_SECRET;
 
 const express = require('express');
 const logger = require('./middlewares/logger');
@@ -22,7 +33,17 @@ const app = express();
 app.use(logger);
 app.use(express.json());
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+const swaggerUiOptions = {
+  explorer: true,
+  swaggerOptions: {
+    persistAuthorization: true,
+    docExpansion: 'none',
+    displayRequestDuration: true,
+    defaultModelsExpandDepth: -1
+  }
+};
+
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions, null, 'SmartTable API Docs'));
 app.get('/api/docs.json', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
