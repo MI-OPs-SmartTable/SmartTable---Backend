@@ -23,6 +23,7 @@ process.env.JWT_SECRET = environment === 'PRODUCTION'
   : process.env.JWT_SECRET_DEVELOPMENT || process.env.JWT_SECRET;
 
 const express = require('express');
+const cors = require('cors');
 const logger = require('./middlewares/logger');
 const notFound = require('./middlewares/notFound');
 const errorHandler = require('./middlewares/errorHandler');
@@ -30,7 +31,25 @@ const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
 
+function parseCorsOrigins(value) {
+  return String(value || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || 'http://localhost:3030');
+
 app.use(logger);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, false);
+  }
+}));
 app.use(express.json());
 
 const swaggerUiOptions = {
