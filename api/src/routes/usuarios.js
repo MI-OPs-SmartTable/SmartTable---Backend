@@ -93,7 +93,7 @@ function deleteUsuario(req, res) {
   }
 }
 
-router.get('/', ...adminOnly, getAll);
+router.get('/', getAll);
 router.get('/:id', ...adminOnly, getById);
 router.post('/', ...(isDev ? [] : adminOnly), createUsuario);
 router.put('/:id', ...adminOnly, updateUsuario);

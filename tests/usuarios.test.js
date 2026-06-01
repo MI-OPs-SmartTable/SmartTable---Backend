@@ -34,7 +34,6 @@ describe('Usuarios', () => {
   it('debe retornar un arreglo con los usuarios activos', async () => {
     const response = await request(app)
       .get('/api/usuarios')
-      .set('Authorization', adminAuthHeader);
 
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
