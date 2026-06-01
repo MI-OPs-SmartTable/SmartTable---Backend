@@ -6,6 +6,8 @@
     "start": "node api/index.js",
     "dev": "node --watch api/index.js",
     "seed": "node api/src/database/seeds.js",
+    "seed:pos": "node api/src/database/seedsPosCatalog.js",
+    "seed:pos:force": "node api/src/database/seedsPosCatalog.js --force",
     "test": "jest --runInBand"
   },
   "jest": {

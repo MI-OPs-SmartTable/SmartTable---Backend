@@ -66,6 +66,7 @@ router.post('/login', (req, res) => {
     return res.status(200).json({
       token,
       usuario: {
+        id: usuarioAutenticado.id,
         nombre_completo: usuarioAutenticado.nombre_completo,
         rol: usuarioAutenticado.rol
       }

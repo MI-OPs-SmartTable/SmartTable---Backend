@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../database/db');
 const auth = require('../middlewares/auth');
 const { requireRol } = auth;
+const { hashPin } = require('../middlewares/hashPin');
 const usuarios = require('../models/usuarios');
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -59,18 +60,30 @@ function getById(req, res) {
   }
 }
 
+function resolvePinHash(body) {
+  if (!isMissing(body.pin)) {
+    return hashPin(String(body.pin));
+  }
+  if (!isMissing(body.pin_hash)) {
+    return String(body.pin_hash).trim();
+  }
+  return null;
+}
+
 function createUsuario(req, res) {
   try {
     if (isMissing(req.body.rol_id)) return res.status(400).json({ error: 'Campo rol_id requerido' });
     if (isMissing(req.body.nombre_completo)) return res.status(400).json({ error: 'Campo nombre_completo requerido' });
     if (isMissing(req.body.email)) return res.status(400).json({ error: 'Campo email requerido' });
-    if (isMissing(req.body.pin_hash)) return res.status(400).json({ error: 'Campo pin_hash requerido' });
+
+    const pinHash = resolvePinHash(req.body);
+    if (!pinHash) return res.status(400).json({ error: 'Campo pin o pin_hash requerido' });
 
     if (!isDev && !canAssignRoleInProduction(req.body.rol_id)) {
       return res.status(400).json({ error: 'Rol no válido' });
     }
 
-    return res.status(201).json(sanitizeUsuario(usuarios.create(req.body)));
+    return res.status(201).json(sanitizeUsuario(usuarios.create({ ...req.body, pin_hash: pinHash })));
   } catch (err) {
     return handleError(res, err);
   }
@@ -78,7 +91,13 @@ function createUsuario(req, res) {
 
 function updateUsuario(req, res) {
   try {
-    return res.status(200).json(sanitizeUsuario(usuarios.update(req.params.id, req.body || {})));
+    const body = { ...(req.body || {}) };
+    const pinHash = resolvePinHash(body);
+    if (pinHash) {
+      body.pin_hash = pinHash;
+      delete body.pin;
+    }
+    return res.status(200).json(sanitizeUsuario(usuarios.update(req.params.id, body)));
   } catch (err) {
     return handleError(res, err);
   }

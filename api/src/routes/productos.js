@@ -19,6 +19,12 @@ router.use(auth);
 
 router.get('/', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
+    if (req.query.catalogo === '1') {
+      return res.status(200).json(productos.getAllForCatalog());
+    }
+    if (req.query.detalle === '1') {
+      return res.status(200).json(productos.getAllWithDetalle());
+    }
     return res.status(200).json(productos.getAll());
   } catch (err) {
     return handleError(res, err);

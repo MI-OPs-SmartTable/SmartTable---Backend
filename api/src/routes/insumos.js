@@ -3,6 +3,9 @@ const auth = require('../middlewares/auth');
 const { requireRol } = auth;
 const insumos = require('../models/insumos');
 
+const readRoles = requireRol('admin', 'cajero', 'mesero');
+const writeRoles = requireRol('admin');
+
 function isMissing(value) {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 }
@@ -15,9 +18,7 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.use(auth, requireRol('admin', 'cajero'));
-
-router.get('/', (req, res) => {
+router.get('/', auth, readRoles, (req, res) => {
   try {
     return res.status(200).json(insumos.getAll());
   } catch (err) {
@@ -25,7 +26,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/stock-bajo', (req, res) => {
+router.get('/stock-bajo', auth, readRoles, (req, res) => {
   try {
     return res.status(200).json(insumos.getInsumosConStockBajo());
   } catch (err) {
@@ -33,7 +34,7 @@ router.get('/stock-bajo', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', auth, readRoles, (req, res) => {
   try {
     const insumo = insumos.getById(req.params.id);
     if (insumo === null || insumo === undefined) {
@@ -45,12 +46,10 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', auth, writeRoles, (req, res) => {
   try {
-    if (isMissing(req.body.proveedor_id)) return res.status(400).json({ error: 'Campo proveedor_id requerido' });
     if (isMissing(req.body.nombre)) return res.status(400).json({ error: 'Campo nombre requerido' });
     if (isMissing(req.body.unidad)) return res.status(400).json({ error: 'Campo unidad requerido' });
-    if (isMissing(req.body.costo_unitario)) return res.status(400).json({ error: 'Campo costo_unitario requerido' });
 
     return res.status(201).json(insumos.create(req.body));
   } catch (err) {
@@ -58,7 +57,7 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', auth, writeRoles, (req, res) => {
   try {
     return res.status(200).json(insumos.update(req.params.id, req.body || {}));
   } catch (err) {
@@ -66,7 +65,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', auth, writeRoles, (req, res) => {
   try {
     insumos.deactivate(req.params.id);
     return res.status(204).send();
