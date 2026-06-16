@@ -49,6 +49,8 @@ router.post('/', (req, res) => {
       req.body.pagos = {
         monto_efectivo: req.body.pagos.monto_efectivo ?? 0,
         monto_transferencia: req.body.pagos.monto_transferencia ?? 0,
+        medio_transferencia_id: req.body.pagos.medio_transferencia_id,
+        comentario: req.body.pagos.comentario ?? req.body.pagos.descripcion,
       };
 
       return res.status(201).json(ventas.create(req.body));

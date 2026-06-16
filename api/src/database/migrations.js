@@ -27,6 +27,47 @@ function ensureSesionesCajaNullable() {
   `);
 }
 
+function ensureVentasTransferenciaSchema() {
+  const tableInfo = db.prepare('PRAGMA table_info(ventas)').all();
+  const medioTransferenciaColumn = tableInfo.find((column) => column.name === 'medio_transferencia_id');
+  const comentarioColumn = tableInfo.find((column) => column.name === 'comentario');
+
+  if (medioTransferenciaColumn && comentarioColumn) {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ventas_medio_transferencia_id ON ventas (medio_transferencia_id);
+    `);
+
+    return;
+  }
+
+  db.exec(`
+    ALTER TABLE ventas RENAME TO ventas_old;
+
+    CREATE TABLE ventas (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      pedido_id TEXT NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
+      caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
+      total REAL NOT NULL CHECK (total >= 0),
+      monto_efectivo REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
+      monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
+      medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
+      comentario TEXT,
+      metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
+      pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    INSERT INTO ventas (id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at)
+    SELECT id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, NULL, NULL, metodo_pago, pagado_at
+    FROM ventas_old;
+
+    DROP TABLE ventas_old;
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ventas_medio_transferencia_id ON ventas (medio_transferencia_id);
+  `);
+}
+
 function runMigrations() {
   db.exec(`
     PRAGMA foreign_keys = ON;
@@ -148,6 +189,12 @@ function runMigrations() {
       estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado'))
     );
 
+    CREATE TABLE IF NOT EXISTS medios_pago_transferencia (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      nombre TEXT NOT NULL UNIQUE,
+      activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
+    );
+
     CREATE TABLE IF NOT EXISTS ventas (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       pedido_id TEXT NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
@@ -155,6 +202,8 @@ function runMigrations() {
       total REAL NOT NULL CHECK (total >= 0),
       monto_efectivo REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
       monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
+      medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
+      comentario TEXT,
       metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
       pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -190,6 +239,7 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_usuario_id ON gastos_caja (usuario_id);
   `);
 
+  ensureVentasTransferenciaSchema();
   ensureSesionesCajaNullable();
 }
 

@@ -126,6 +126,12 @@ function runMigrations() {
       estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado'))
     );
 
+    CREATE TABLE medios_pago_transferencia (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      nombre TEXT NOT NULL UNIQUE,
+      activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
+    );
+
     CREATE TABLE ventas (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       pedido_id TEXT NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
@@ -133,6 +139,8 @@ function runMigrations() {
       total REAL NOT NULL CHECK (total >= 0),
       monto_efectivo REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
       monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
+      medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
+      comentario TEXT,
       metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
       pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -269,6 +277,9 @@ function seedDatabase() {
   db.prepare('INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)').run(itemCafeConLecheId, pedidoId, cafeConLecheId, 2, 4200, 'pendiente');
   db.prepare('INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)').run(itemPorcionGrandeId, pedidoId, porcionGrandeId, 1, 16000, 'pendiente');
 
+  const nequiMedioPagoId = randomUUID().replace(/-/g, '').toLowerCase();
+  db.prepare('INSERT INTO medios_pago_transferencia (id, nombre, activo) VALUES (?, ?, ?)').run(nequiMedioPagoId, 'Nequi', 1);
+
   Object.assign(seedData, {
     adminRolId,
     cajeroRolId,
@@ -306,6 +317,7 @@ function seedDatabase() {
     pedidoId,
     itemCafeConLecheId,
     itemPorcionGrandeId,
+    nequiMedioPagoId,
   });
 }
 

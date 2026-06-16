@@ -18,6 +18,7 @@ const ROUTE_DEFINITIONS = [
   { basePath: '/api/sesiones', routeFile: 'sesiones.js', tag: 'Sesiones' },
   { basePath: '/api/pedidos', routeFile: 'pedidos.js', tag: 'Pedidos' },
   { basePath: '/api/items-pedido', routeFile: 'items_pedido.js', tag: 'ItemsPedido' },
+  { basePath: '/api/medios-pago-transferencia', routeFile: 'medios_pago_transferencia.js', tag: 'MediosPagoTransferencia' },
   { basePath: '/api/ventas', routeFile: 'ventas.js', tag: 'Ventas' },
   { basePath: '/api/gastos-caja', routeFile: 'gastos_caja.js', tag: 'GastosCaja' }
 ];
@@ -146,6 +147,68 @@ function buildOperation(method, openApiPath, tag) {
     };
   }
 
+  if (tag === 'MediosPagoTransferencia' && method === 'post' && openApiPath === '/api/medios-pago-transferencia') {
+    operation.summary = 'Crear medio de pago por transferencia';
+    operation.description = 'Registra un medio de pago por transferencia que luego puede asociarse a ventas.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['nombre'],
+            properties: {
+              nombre: {
+                type: 'string',
+                example: 'Bancolombia'
+              }
+            }
+          },
+          examples: {
+            medio_transferencia: {
+              value: {
+                nombre: 'Bancolombia'
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      201: {
+        description: 'Medio de pago creado',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                nombre: { type: 'string' },
+                activo: { type: 'integer' }
+              }
+            }
+          }
+        }
+      },
+      400: {
+        description: 'Falta el nombre',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string', example: 'Campo nombre requerido' }
+              }
+            }
+          }
+        }
+      },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
   // Documentacion especifica para crear productos: incluir precio e insumos
   if (tag === 'Productos' && method === 'post' && openApiPath === '/api/productos') {
     operation.summary = 'Crear producto (con variante por defecto e insumos)';
@@ -222,6 +285,95 @@ function buildOperation(method, openApiPath, tag) {
       },
       400: { description: 'Solicitud inválida' },
       401: { description: 'Autenticación requerida' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Ventas' && method === 'post' && openApiPath === '/api/ventas') {
+    operation.summary = 'Registrar venta';
+    operation.description = 'Registra el pago de un pedido usando efectivo, transferencia o ambos. Si hay transferencia, debe enviarse un medio_transferencia_id válido.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['pedido_id', 'caja_id', 'pagos'],
+            properties: {
+              pedido_id: { type: 'string', example: 'pedido_123' },
+              caja_id: { type: 'string', example: 'caja_123' },
+              pagos: {
+                type: 'object',
+                required: ['monto_efectivo', 'monto_transferencia'],
+                properties: {
+                  monto_efectivo: {
+                    type: 'number',
+                    minimum: 0,
+                    example: 0
+                  },
+                  monto_transferencia: {
+                    type: 'number',
+                    minimum: 0,
+                    example: 32000
+                  },
+                  medio_transferencia_id: {
+                    type: 'string',
+                    nullable: true,
+                    example: 'medio_transferencia_123'
+                  },
+                  comentario: {
+                    type: 'string',
+                    nullable: true,
+                    example: 'Pago aprobado por Nequi'
+                  }
+                }
+              }
+            }
+          },
+          examples: {
+            venta_transferencia: {
+              value: {
+                pedido_id: 'pedido_123',
+                caja_id: 'caja_123',
+                pagos: {
+                  monto_efectivo: 0,
+                  monto_transferencia: 32000,
+                  medio_transferencia_id: 'medio_transferencia_123',
+                  comentario: 'Pago aprobado por Nequi'
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      201: {
+        description: 'Venta registrada',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                pedido_id: { type: 'string' },
+                caja_id: { type: 'string' },
+                total: { type: 'number' },
+                monto_efectivo: { type: 'number' },
+                monto_transferencia: { type: 'number' },
+                medio_transferencia_id: { type: 'string', nullable: true },
+                comentario: { type: 'string', nullable: true },
+                metodo_pago: { type: 'string' },
+                pagado_at: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Solicitud inválida' },
+      401: { description: 'Autenticación requerida' },
+      403: { description: 'No autorizado' },
+      404: { description: 'No encontrado' },
       500: { description: 'Error interno' }
     };
   }
@@ -398,6 +550,7 @@ const swaggerDefinition = {
     { name: 'Ubicaciones' },
     { name: 'Mesas' },
     { name: 'Cajas' },
+    { name: 'MediosPagoTransferencia' },
     { name: 'Sesiones' },
     { name: 'Pedidos' },
     { name: 'ItemsPedido' },
