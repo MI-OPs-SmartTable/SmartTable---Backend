@@ -49,10 +49,10 @@ environment=PRODUCTION
 
 Según ese valor, la app toma automáticamente el secreto correspondiente desde `JWT_SECRET_DEVELOPMENT` o `JWT_SECRET_PRODUCTION` y también ajusta `NODE_ENV` para mantener compatibilidad con el resto del código.
 
-Si tu frontend corre en otro puerto u host, define también `CORS_ORIGIN` para autorizar uno o varios orígenes separados por comas. Por defecto el backend permite `http://localhost:3030`.
+Si tu frontend corre en otro puerto u host, define también `CORS_ORIGIN` para autorizar uno o varios orígenes separados por comas. Por defecto el backend permite `http://localhost:3030` y `http://localhost:5173`.
 
 ```env
-CORS_ORIGIN=http://localhost:3030,http://localhost:3000
+CORS_ORIGIN=http://localhost:3030,http://localhost:5173
 ```
 
 ## Documentacion Swagger
