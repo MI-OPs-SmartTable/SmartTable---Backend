@@ -1,5 +1,5 @@
 const db = require('../database/db');
-const { ensureCajaAbierta, ensureExists, ensureNonNegative, ensureText, fetchById, newId } = require('./_utils');
+const { ensureActive, ensureCajaAbierta, ensureNonNegative, ensureText, fetchById, normalizeText, newId } = require('./_utils');
 
 const METODOS_PAGO = ['efectivo', 'transferencia', 'mixto'];
 
@@ -34,6 +34,8 @@ function create(data) {
 
   const montoEfectivo = ensureNonNegative(pagos.monto_efectivo ?? 0, 'El monto en efectivo');
   const montoTransferencia = ensureNonNegative(pagos.monto_transferencia ?? 0, 'El monto por transferencia');
+  const medioTransferenciaId = normalizeText(pagos.medio_transferencia_id);
+  const comentario = normalizeText(pagos.comentario ?? pagos.descripcion);
   const total = db.prepare('SELECT COALESCE(SUM(cantidad * precio_unitario), 0) AS total FROM items_pedido WHERE pedido_id = ?').get(pedidoId).total;
   const metodoPago = montoEfectivo > 0 && montoTransferencia > 0
     ? 'mixto'
@@ -63,12 +65,24 @@ function create(data) {
     throw new Error('La venta por transferencia no debe incluir efectivo');
   }
 
+  if (montoTransferencia > 0 && !medioTransferenciaId) {
+    throw new Error('Debe seleccionar un medio de pago por transferencia');
+  }
+
+  if (montoTransferencia === 0 && medioTransferenciaId) {
+    throw new Error('El medio de pago por transferencia solo aplica cuando existe monto por transferencia');
+  }
+
+  if (medioTransferenciaId) {
+    ensureActive(db, 'medios_pago_transferencia', medioTransferenciaId, 'Medio de pago por transferencia');
+  }
+
   const createVentaTransaction = db.transaction((payload) => {
     const ventaId = newId();
 
     db.prepare(
-      'INSERT INTO ventas (id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
-    ).run(ventaId, payload.pedidoId, payload.cajaId, payload.total, payload.montoEfectivo, payload.montoTransferencia, payload.metodoPago);
+      'INSERT INTO ventas (id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
+    ).run(ventaId, payload.pedidoId, payload.cajaId, payload.total, payload.montoEfectivo, payload.montoTransferencia, payload.medioTransferenciaId, payload.comentario, payload.metodoPago);
 
     db.prepare('UPDATE pedidos SET estado = ? WHERE id = ?').run('pagado', payload.pedidoId);
 
@@ -80,6 +94,8 @@ function create(data) {
     metodoPago,
     montoEfectivo,
     montoTransferencia,
+    comentario,
+    medioTransferenciaId,
     pedidoId,
     total,
   });
