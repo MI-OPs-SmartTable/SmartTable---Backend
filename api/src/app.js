@@ -38,7 +38,7 @@ function parseCorsOrigins(value) {
     .filter(Boolean);
 }
 
-const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || 'http://localhost:3030');
+const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || 'http://localhost:3030,http://localhost:5173');
 
 app.use(logger);
 app.use(cors({
