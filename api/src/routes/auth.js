@@ -2,6 +2,7 @@ const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 const db = require('../database/db');
 const auth = require('../middlewares/auth');
+const cajas = require('../models/cajas');
 const { verifyPin } = require('../middlewares/hashPin');
 const { newId } = require('../models/_utils');
 
@@ -63,9 +64,16 @@ router.post('/login', (req, res) => {
       WHERE u.id = ?
     `).get(usuario.id);
 
+    const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
+    const expiresInSeconds = typeof expiresIn === 'string' && expiresIn.endsWith('h')
+      ? Number.parseInt(expiresIn, 10) * 3600
+      : 28800;
+
     return res.status(200).json({
       token,
+      expiresIn: expiresInSeconds,
       usuario: {
+        id: usuarioAutenticado.id,
         nombre_completo: usuarioAutenticado.nombre_completo,
         rol: usuarioAutenticado.rol
       }
@@ -77,6 +85,11 @@ router.post('/login', (req, res) => {
 
 router.post('/logout', auth, (req, res) => {
   try {
+    const cajaAbierta = cajas.getCajaAbierta(req.usuario.id);
+    if (cajaAbierta) {
+      cajas.cerrar(cajaAbierta.id, {});
+    }
+
     const sesion = db.prepare(
       'SELECT * FROM sesiones WHERE usuario_id = ? AND fin_at IS NULL ORDER BY inicio_at DESC LIMIT 1'
     ).get(req.usuario.id);

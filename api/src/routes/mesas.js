@@ -74,4 +74,13 @@ router.patch('/:id/estado', requireRol('admin', 'cajero'), (req, res) => {
   }
 });
 
+router.delete('/:id', requireRol('admin', 'cajero'), (req, res) => {
+  try {
+    mesas.remove(req.params.id);
+    return res.status(204).send();
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
 module.exports = router;

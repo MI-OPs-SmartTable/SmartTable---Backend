@@ -1,4 +1,5 @@
 const db = require('./db');
+const { newId } = require('../models/_utils');
 
 function ensureSesionesCajaNullable() {
   const tableInfo = db.prepare('PRAGMA table_info(sesiones)').all();
@@ -241,6 +242,17 @@ function runMigrations() {
 
   ensureVentasTransferenciaSchema();
   ensureSesionesCajaNullable();
+  ensureDefaultMediosPago();
+}
+
+function ensureDefaultMediosPago() {
+  const defaults = ['Bancolombia', 'Nequi', 'Daviplata', 'Davivienda', 'BBVA'];
+  for (const nombre of defaults) {
+    const exists = db.prepare('SELECT id FROM medios_pago_transferencia WHERE nombre = ?').get(nombre);
+    if (!exists) {
+      db.prepare('INSERT INTO medios_pago_transferencia (id, nombre, activo) VALUES (?, ?, 1)').run(newId(), nombre);
+    }
+  }
 }
 
 module.exports = { runMigrations };

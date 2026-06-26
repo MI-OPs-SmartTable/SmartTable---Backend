@@ -3,6 +3,9 @@ const auth = require('../middlewares/auth');
 const { requireRol } = auth;
 const categorias = require('../models/categorias');
 
+const readRoles = requireRol('admin', 'cajero', 'mesero');
+const writeRoles = requireRol('admin');
+
 function isMissing(value) {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 }
@@ -15,9 +18,7 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.use(auth, requireRol('admin', 'cajero'));
-
-router.get('/', (req, res) => {
+router.get('/', auth, readRoles, (req, res) => {
   try {
     return res.status(200).json(categorias.getAll());
   } catch (err) {
@@ -25,7 +26,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', auth, readRoles, (req, res) => {
   try {
     const categoria = categorias.getById(req.params.id);
     if (categoria === null || categoria === undefined) {
@@ -37,7 +38,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', auth, writeRoles, (req, res) => {
   try {
     if (isMissing(req.body.nombre)) {
       return res.status(400).json({ error: 'Campo nombre requerido' });
@@ -49,7 +50,7 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', auth, writeRoles, (req, res) => {
   try {
     return res.status(200).json(categorias.update(req.params.id, req.body || {}));
   } catch (err) {
@@ -57,7 +58,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', auth, writeRoles, (req, res) => {
   try {
     categorias.deactivate(req.params.id);
     return res.status(204).send();

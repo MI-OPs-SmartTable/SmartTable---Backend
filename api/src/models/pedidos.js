@@ -15,6 +15,16 @@ function getAll() {
   return db.prepare('SELECT * FROM pedidos ORDER BY created_at DESC').all();
 }
 
+function getPendientes(cajaId) {
+  ensureText(cajaId, 'El caja_id');
+  const rows = db.prepare(`
+    SELECT id FROM pedidos
+    WHERE caja_id = ? AND estado NOT IN ('pagado', 'cancelado')
+    ORDER BY created_at DESC
+  `).all(cajaId);
+  return rows.map((row) => getById(row.id));
+}
+
 function getById(id) {
   const pedido = fetchById(db, 'pedidos', id, 'Pedido');
   const items = db.prepare(
@@ -77,6 +87,28 @@ function validateStockForItems(items) {
   }
 }
 
+function ensureMesaDisponible(mesaId, excludePedidoId = null) {
+  if (!mesaId) {
+    return;
+  }
+
+  const existing = excludePedidoId
+    ? db.prepare(`
+        SELECT id FROM pedidos
+        WHERE mesa_id = ? AND estado NOT IN ('pagado', 'cancelado') AND id != ?
+        LIMIT 1
+      `).get(mesaId, excludePedidoId)
+    : db.prepare(`
+        SELECT id FROM pedidos
+        WHERE mesa_id = ? AND estado NOT IN ('pagado', 'cancelado')
+        LIMIT 1
+      `).get(mesaId);
+
+  if (existing) {
+    throw new Error('La mesa ya tiene un pedido pendiente por cobrar');
+  }
+}
+
 function create(data) {
   const usuarioId = ensureText(data.usuario_id, 'El usuario_id del pedido');
   const cajaId = ensureText(data.caja_id, 'El caja_id del pedido');
@@ -89,6 +121,7 @@ function create(data) {
   ensureCajaAbierta(db, cajaId);
   if (mesaId) {
     ensureExists(db, 'mesas', mesaId, 'Mesa');
+    ensureMesaDisponible(mesaId);
   }
 
   validateStockForItems(items);
@@ -150,6 +183,9 @@ function update(id, data) {
 
   if (mesaId) {
     ensureExists(db, 'mesas', mesaId, 'Mesa');
+    if (mesaId !== current.mesa_id) {
+      ensureMesaDisponible(mesaId, id);
+    }
   }
   if (data.usuario_id !== undefined) {
     ensureExists(db, 'usuarios', usuarioId, 'Usuario');
@@ -177,9 +213,51 @@ function cancel(id) {
   if (current.estado === 'cancelado') {
     return getPedidoConItems(id);
   }
+  if (current.estado === 'pagado') {
+    throw new Error('No se puede cancelar un pedido ya pagado');
+  }
 
   db.prepare('UPDATE pedidos SET estado = ? WHERE id = ?').run('cancelado', id);
   return getPedidoConItems(id);
 }
 
-module.exports = { cancel, create, getAll, getById, getPedidoConItems, update, updateEstado };
+function replaceItems(id, items) {
+  const current = getById(id);
+  if (current.estado === 'pagado' || current.estado === 'cancelado') {
+    throw new Error('No se puede editar un pedido finalizado');
+  }
+
+  const normalizedItems = Array.isArray(items) ? items : [];
+  if (normalizedItems.length === 0) {
+    throw new Error('Debe enviar al menos un item para el pedido');
+  }
+
+  validateStockForItems(normalizedItems);
+
+  const replaceTransaction = db.transaction((payload) => {
+    db.prepare('DELETE FROM items_pedido WHERE pedido_id = ?').run(payload.id);
+
+    for (const item of payload.items) {
+      const varianteId = ensureText(item.variante_id, 'La variante_id del item');
+      const variante = db.prepare('SELECT id, nombre, precio, activo FROM variantes_producto WHERE id = ?').get(varianteId);
+      if (!variante || variante.activo !== 1) {
+        throw new Error('Variante de producto no encontrada o inactiva: ' + varianteId);
+      }
+
+      const cantidad = ensurePositive(item.cantidad, 'La cantidad del item');
+      const precioUnitario = item.precio_unitario !== undefined
+        ? ensureNonNegative(item.precio_unitario, 'El precio unitario del item')
+        : Number(variante.precio);
+
+      db.prepare(
+        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(newId(), payload.id, varianteId, cantidad, precioUnitario, 'pendiente');
+    }
+
+    return getPedidoConItems(payload.id);
+  });
+
+  return replaceTransaction({ id, items: normalizedItems });
+}
+
+module.exports = { cancel, create, getAll, getById, getPedidoConItems, getPendientes, replaceItems, update, updateEstado };

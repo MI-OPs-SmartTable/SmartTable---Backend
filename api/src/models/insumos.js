@@ -17,8 +17,18 @@ function getById(id) {
   return fetchById(db, 'insumos', id, 'Insumo');
 }
 
+function getDefaultProveedorId() {
+  const row = db.prepare('SELECT id FROM proveedores WHERE activo = 1 ORDER BY nombre LIMIT 1').get();
+  if (!row) {
+    throw new Error('No hay proveedores registrados. Cree un proveedor antes de agregar insumos.');
+  }
+  return row.id;
+}
+
 function create(data) {
-  const proveedorId = ensureText(data.proveedor_id, 'El proveedor_id del insumo');
+  const proveedorId = data.proveedor_id !== undefined && data.proveedor_id !== null && String(data.proveedor_id).trim() !== ''
+    ? ensureText(data.proveedor_id, 'El proveedor_id del insumo')
+    : getDefaultProveedorId();
   ensureExists(db, 'proveedores', proveedorId, 'Proveedor');
 
   const nombre = ensureText(data.nombre, 'El nombre del insumo');
