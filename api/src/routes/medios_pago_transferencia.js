@@ -37,4 +37,21 @@ router.post('/', requireRol('admin'), (req, res) => {
   }
 });
 
+router.put('/:id', requireRol('admin'), (req, res) => {
+  try {
+    return res.status(200).json(mediosPagoTransferencia.update(req.params.id, req.body || {}));
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.delete('/:id', requireRol('admin'), (req, res) => {
+  try {
+    mediosPagoTransferencia.deactivate(req.params.id);
+    return res.status(204).send();
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
 module.exports = router;

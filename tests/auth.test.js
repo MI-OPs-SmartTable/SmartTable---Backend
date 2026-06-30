@@ -33,4 +33,24 @@ describe('Auth', () => {
     expect(response.status).toBe(401);
     expect(response.body).toEqual(expect.objectContaining({ error: 'Credenciales inválidas' }));
   });
+
+  it('debe cerrar la caja abierta al cerrar sesión', async () => {
+    const loginResponse = await request(app)
+      .post('/api/auth/login')
+      .send({ nombre_completo: 'Ana García', pin: '1234' });
+
+    const token = loginResponse.body.token;
+
+    const logoutResponse = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(logoutResponse.status).toBe(200);
+
+    const caja = db.prepare('SELECT * FROM cajas WHERE id = ?').get(db.seedData.cajaAbiertaId);
+    expect(caja.estado).toBe('cerrada');
+    expect(caja.cierre_at).not.toBeNull();
+
+    db.prepare("UPDATE cajas SET estado = 'abierta', cierre_at = NULL WHERE id = ?").run(db.seedData.cajaAbiertaId);
+  });
 });

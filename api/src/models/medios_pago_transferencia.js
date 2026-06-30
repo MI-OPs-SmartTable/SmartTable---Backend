@@ -23,4 +23,24 @@ function create(data) {
   return getById(id);
 }
 
-module.exports = { create, getAll, getById };
+function update(id, data) {
+  const current = getById(id);
+  const nombre = data.nombre !== undefined ? ensureText(data.nombre, 'El nombre del medio de pago por transferencia') : current.nombre;
+  const activo = data.activo !== undefined ? (data.activo ? 1 : 0) : current.activo;
+
+  const duplicate = db.prepare('SELECT id FROM medios_pago_transferencia WHERE nombre = ? AND id <> ?').get(nombre, id);
+  if (duplicate) {
+    throw new Error('Medio de pago por transferencia duplicado: ' + nombre);
+  }
+
+  db.prepare('UPDATE medios_pago_transferencia SET nombre = ?, activo = ? WHERE id = ?').run(nombre, activo, id);
+  return getById(id);
+}
+
+function deactivate(id) {
+  const current = getById(id);
+  db.prepare('UPDATE medios_pago_transferencia SET activo = 0 WHERE id = ?').run(id);
+  return getById(id);
+}
+
+module.exports = { create, deactivate, getAll, getById, update };

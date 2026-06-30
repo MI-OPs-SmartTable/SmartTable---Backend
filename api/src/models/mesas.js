@@ -60,4 +60,17 @@ function updateEstado(id, estado) {
   return getById(id);
 }
 
-module.exports = { create, getAll, getById, getByUbicacion, update, updateEstado };
+function remove(id) {
+  const current = getById(id);
+  const pedidoActivo = db.prepare(
+    "SELECT id FROM pedidos WHERE mesa_id = ? AND estado NOT IN ('pagado', 'cancelado') LIMIT 1"
+  ).get(id);
+  if (pedidoActivo) {
+    throw new Error('No se puede eliminar una mesa con pedidos activos');
+  }
+
+  db.prepare('DELETE FROM mesas WHERE id = ?').run(id);
+  return current;
+}
+
+module.exports = { create, getAll, getById, getByUbicacion, remove, update, updateEstado };

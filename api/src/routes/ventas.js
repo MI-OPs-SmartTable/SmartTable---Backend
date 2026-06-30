@@ -9,11 +9,22 @@ function isMissing(value) {
 }
 
 function handleError(res, err) {
-  if (String(err.message || '').toLowerCase().includes('no encontrado')) {
-    return res.status(404).json({ error: 'No encontrado' });
+  const message = String(err.message || '');
+  if (message.toLowerCase().includes('no encontrado')) {
+    return res.status(404).json({ error: message });
   }
-
-  return res.status(500).json({ error: err.message });
+  if (
+    message.includes('Debe seleccionar') ||
+    message.includes('no coincide') ||
+    message.includes('inválido') ||
+    message.includes('requerido') ||
+    message.includes('obligatorio') ||
+    message.includes('No se puede') ||
+    message.includes('ya fue pagado')
+  ) {
+    return res.status(400).json({ error: message });
+  }
+  return res.status(500).json({ error: message });
 }
 
 router.use(auth, requireRol('admin', 'cajero'));
@@ -50,7 +61,8 @@ router.post('/', (req, res) => {
         monto_efectivo: req.body.pagos.monto_efectivo ?? 0,
         monto_transferencia: req.body.pagos.monto_transferencia ?? 0,
         medio_transferencia_id: req.body.pagos.medio_transferencia_id,
-        comentario: req.body.pagos.comentario ?? req.body.pagos.descripcion,
+        banco_nombre: req.body.pagos.banco_nombre,
+        comentario: req.body.pagos.comentario ?? req.body.pagos.descripcion ?? req.body.pagos.descripcion_transferencia,
       };
 
       return res.status(201).json(ventas.create(req.body));

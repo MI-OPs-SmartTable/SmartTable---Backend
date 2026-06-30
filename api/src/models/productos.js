@@ -5,6 +5,31 @@ function getAll() {
   return db.prepare('SELECT * FROM productos WHERE activo = 1 ORDER BY nombre').all();
 }
 
+function getAllForCatalog() {
+  return db.prepare(`
+    SELECT p.id, p.categoria_id, p.nombre, p.descripcion, p.activo,
+           vp.id AS variante_id, vp.precio
+    FROM productos p
+    INNER JOIN variantes_producto vp ON vp.producto_id = p.id AND vp.activo = 1
+    WHERE p.activo = 1
+    ORDER BY p.nombre
+  `).all();
+}
+
+function getAllWithDetalle() {
+  const rows = getAllForCatalog();
+  const insumosStmt = db.prepare(`
+    SELECT r.insumo_id, r.cantidad_requerida AS cantidad
+    FROM recetas r
+    WHERE r.variante_id = ?
+  `);
+
+  return rows.map((row) => ({
+    ...row,
+    insumos: insumosStmt.all(row.variante_id),
+  }));
+}
+
 function getById(id) {
   const producto = fetchById(db, 'productos', id, 'Producto');
   const variantes = db.prepare('SELECT * FROM variantes_producto WHERE producto_id = ? AND activo = 1 ORDER BY nombre').all(id);
@@ -114,4 +139,4 @@ function deactivate(id) {
   return getById(id);
 }
 
-module.exports = { create, deactivate, getAll, getById, update };
+module.exports = { create, deactivate, getAll, getAllForCatalog, getAllWithDetalle, getById, update };

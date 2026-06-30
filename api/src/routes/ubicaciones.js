@@ -15,9 +15,9 @@ function handleError(res, err) {
   return res.status(500).json({ error: err.message });
 }
 
-router.use(auth, requireRol('admin'));
+router.use(auth);
 
-router.get('/', (req, res) => {
+router.get('/', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     return res.status(200).json(ubicaciones.getAll());
   } catch (err) {
@@ -25,7 +25,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     const ubicacion = ubicaciones.getById(req.params.id);
     if (ubicacion === null || ubicacion === undefined) {
@@ -37,7 +37,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireRol('admin'), (req, res) => {
   try {
     if (isMissing(req.body.nombre)) {
       return res.status(400).json({ error: 'Campo nombre requerido' });
@@ -49,7 +49,7 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', requireRol('admin'), (req, res) => {
   try {
     return res.status(200).json(ubicaciones.update(req.params.id, req.body || {}));
   } catch (err) {
@@ -57,7 +57,7 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', requireRol('admin'), (req, res) => {
   try {
     ubicaciones.deactivate(req.params.id);
     return res.status(204).send();

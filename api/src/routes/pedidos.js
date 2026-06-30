@@ -9,14 +9,32 @@ function isMissing(value) {
 }
 
 function handleError(res, err) {
-  if (String(err.message || '').toLowerCase().includes('no encontrado')) {
-    return res.status(404).json({ error: 'No encontrado' });
+  const message = String(err.message || '');
+  if (message.toLowerCase().includes('no encontrado')) {
+    return res.status(404).json({ error: message });
   }
-
-  return res.status(500).json({ error: err.message });
+  if (
+    message.includes('Stock insuficiente') ||
+    message.includes('inválido') ||
+    message.includes('requerido') ||
+    message.includes('No se puede') ||
+    message.includes('Debe enviar') ||
+    message.includes('ya tiene un pedido pendiente')
+  ) {
+    return res.status(400).json({ error: message });
+  }
+  return res.status(500).json({ error: message });
 }
 
 router.use(auth, requireRol('admin', 'cajero', 'mesero'));
+
+router.get('/pendientes/:caja_id', (req, res) => {
+  try {
+    return res.status(200).json(pedidos.getPendientes(req.params.caja_id));
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
 
 router.get('/', (req, res) => {
   try {
@@ -48,6 +66,25 @@ router.post('/', (req, res) => {
       return handleError(res, err);
     }
   });
+});
+
+router.put('/:id', (req, res) => {
+  try {
+    if (Array.isArray(req.body.items)) {
+      return res.status(200).json(pedidos.replaceItems(req.params.id, req.body.items));
+    }
+    return res.status(200).json(pedidos.update(req.params.id, req.body || {}));
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.delete('/:id', (req, res) => {
+  try {
+    return res.status(200).json(pedidos.cancel(req.params.id));
+  } catch (err) {
+    return handleError(res, err);
+  }
 });
 
 router.patch('/:id/estado', (req, res) => {

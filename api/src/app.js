@@ -89,6 +89,22 @@ app.use('/api/medios-pago-transferencia', require('./routes/medios_pago_transfer
 app.use('/api/ventas', require('./routes/ventas'));
 app.use('/api/gastos-caja', require('./routes/gastos_caja'));
 
+const frontendDist = process.env.FRONTEND_DIST;
+if (frontendDist) {
+  app.use(express.static(frontendDist));
+  app.get(/^(?!\/api).*/, (req, res, next) => {
+    if (req.method !== 'GET') {
+      return next();
+    }
+
+    return res.sendFile(path.join(frontendDist, 'index.html'), (err) => {
+      if (err) {
+        next(err);
+      }
+    });
+  });
+}
+
 app.use(notFound);
 app.use(errorHandler);
 

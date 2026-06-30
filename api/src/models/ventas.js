@@ -34,9 +34,22 @@ function create(data) {
 
   const montoEfectivo = ensureNonNegative(pagos.monto_efectivo ?? 0, 'El monto en efectivo');
   const montoTransferencia = ensureNonNegative(pagos.monto_transferencia ?? 0, 'El monto por transferencia');
-  const medioTransferenciaId = normalizeText(pagos.medio_transferencia_id);
-  const comentario = normalizeText(pagos.comentario ?? pagos.descripcion);
-  const total = db.prepare('SELECT COALESCE(SUM(cantidad * precio_unitario), 0) AS total FROM items_pedido WHERE pedido_id = ?').get(pedidoId).total;
+  let medioTransferenciaId = normalizeText(pagos.medio_transferencia_id);
+  const comentario = normalizeText(pagos.comentario ?? pagos.descripcion ?? pagos.descripcion_transferencia);
+
+  if (!medioTransferenciaId && pagos.banco_nombre) {
+    const medio = db.prepare(
+      'SELECT id FROM medios_pago_transferencia WHERE nombre = ? AND activo = 1'
+    ).get(String(pagos.banco_nombre).trim());
+    if (medio) {
+      medioTransferenciaId = medio.id;
+    }
+  }
+
+  const subtotal = db.prepare(
+    'SELECT COALESCE(SUM(cantidad * precio_unitario), 0) AS total FROM items_pedido WHERE pedido_id = ?'
+  ).get(pedidoId).total;
+  const total = Number(subtotal);
   const metodoPago = montoEfectivo > 0 && montoTransferencia > 0
     ? 'mixto'
     : montoEfectivo > 0
@@ -82,7 +95,17 @@ function create(data) {
 
     db.prepare(
       'INSERT INTO ventas (id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
-    ).run(ventaId, payload.pedidoId, payload.cajaId, payload.total, payload.montoEfectivo, payload.montoTransferencia, payload.medioTransferenciaId, payload.comentario, payload.metodoPago);
+    ).run(
+      ventaId,
+      payload.pedidoId,
+      payload.cajaId,
+      payload.total,
+      payload.montoEfectivo,
+      payload.montoTransferencia,
+      payload.medioTransferenciaId,
+      payload.comentario,
+      payload.metodoPago
+    );
 
     db.prepare('UPDATE pedidos SET estado = ? WHERE id = ?').run('pagado', payload.pedidoId);
 
