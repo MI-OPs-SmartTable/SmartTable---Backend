@@ -13,17 +13,23 @@ async function getAuthHeader(userId) {
 
 describe('Ventas', () => {
   let cajeroAuthHeader;
+  let adminAuthHeader;
   let pedidoTransferenciaId;
 
   beforeAll(async () => {
     cajeroAuthHeader = await getAuthHeader(db.seedData.luisId);
+    adminAuthHeader = await getAuthHeader(db.seedData.anaId);
+
+    await request(app)
+      .post(`/api/cajas/${db.seedData.cajaAbiertaId}/colaboradores`)
+      .set('Authorization', adminAuthHeader)
+      .send({ usuario_id: db.seedData.luisId });
 
     const pedidoResponse = await request(app)
       .post('/api/pedidos')
       .set('Authorization', cajeroAuthHeader)
       .send({
         usuario_id: db.seedData.mariaId,
-        caja_id: db.seedData.cajaAbiertaId,
         items: [
           {
             variante_id: db.seedData.cafeNegroId,
@@ -41,13 +47,12 @@ describe('Ventas', () => {
       .set('Authorization', cajeroAuthHeader)
       .send({
         pedido_id: pedidoTransferenciaId,
-        caja_id: db.seedData.cajaAbiertaId,
         pagos: {
           monto_transferencia: 3500,
         },
       });
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
     expect(response.body).toEqual(expect.objectContaining({
       error: 'Debe seleccionar un medio de pago por transferencia',
     }));
@@ -59,7 +64,6 @@ describe('Ventas', () => {
       .set('Authorization', cajeroAuthHeader)
       .send({
         pedido_id: pedidoTransferenciaId,
-        caja_id: db.seedData.cajaAbiertaId,
         pagos: {
           monto_transferencia: 3500,
           medio_transferencia_id: db.seedData.nequiMedioPagoId,
@@ -72,6 +76,7 @@ describe('Ventas', () => {
       id: expect.any(String),
       pedido_id: pedidoTransferenciaId,
       caja_id: db.seedData.cajaAbiertaId,
+        usuario_cobro_id: db.seedData.luisId,
       monto_transferencia: 3500,
       medio_transferencia_id: db.seedData.nequiMedioPagoId,
       comentario: 'Cliente confirmó transferencia por Nequi',

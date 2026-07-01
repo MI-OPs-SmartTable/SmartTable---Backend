@@ -1,6 +1,98 @@
 const db = require('./db');
 const { newId } = require('../models/_utils');
 
+function ensureSesionesSchema() {
+  const tableInfo = db.prepare('PRAGMA table_info(sesiones)').all();
+  const rolSesionColumn = tableInfo.find((column) => column.name === 'rol_sesion');
+
+  if (!rolSesionColumn) {
+    db.exec(`
+      ALTER TABLE sesiones RENAME TO sesiones_old;
+
+      CREATE TABLE sesiones (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) ,
+        usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+        caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
+        rol_sesion TEXT NOT NULL DEFAULT 'titular' CHECK (rol_sesion IN ('titular', 'colaborador')),
+        inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
+        fin_at TEXT
+      );
+
+      INSERT INTO sesiones (id, usuario_id, caja_id, rol_sesion, inicio_at, fin_at)
+      SELECT
+        id,
+        usuario_id,
+        caja_id,
+        'titular',
+        inicio_at,
+        CASE
+          WHEN caja_id IS NULL AND fin_at IS NULL THEN datetime('now')
+          ELSE fin_at
+        END
+      FROM sesiones_old;
+
+      DROP TABLE sesiones_old;
+    `);
+  }
+
+  db.prepare(`
+    UPDATE sesiones
+    SET fin_at = datetime('now')
+    WHERE caja_id IS NULL AND fin_at IS NULL
+  `).run();
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_sesiones_usuario_activa
+    ON sesiones (usuario_id)
+    WHERE fin_at IS NULL;
+  `);
+}
+
+function ensureVentasSchema() {
+  const tableInfo = db.prepare('PRAGMA table_info(ventas)').all();
+  const usuarioCobroColumn = tableInfo.find((column) => column.name === 'usuario_cobro_id');
+  const medioTransferenciaColumn = tableInfo.find((column) => column.name === 'medio_transferencia_id');
+  const comentarioColumn = tableInfo.find((column) => column.name === 'comentario');
+
+  if (usuarioCobroColumn && medioTransferenciaColumn && comentarioColumn) {
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_ventas_medio_transferencia_id ON ventas (medio_transferencia_id);
+      CREATE INDEX IF NOT EXISTS idx_ventas_usuario_cobro_id ON ventas (usuario_cobro_id);
+    `);
+
+    return;
+  }
+
+  db.exec(`
+    ALTER TABLE ventas RENAME TO ventas_old;
+
+    CREATE TABLE ventas (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) ,
+      pedido_id TEXT NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
+      caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
+      usuario_cobro_id TEXT REFERENCES usuarios(id) ON DELETE RESTRICT,
+      total REAL NOT NULL CHECK (total >= 0),
+      monto_efectivo REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
+      monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
+      medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
+      comentario TEXT,
+      metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
+      pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    INSERT INTO ventas (id, pedido_id, caja_id, usuario_cobro_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at)
+    SELECT id, pedido_id, caja_id, NULL, total, monto_efectivo, monto_transferencia, NULL, NULL, metodo_pago, pagado_at
+    FROM ventas_old;
+
+    DROP TABLE ventas_old;
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ventas_medio_transferencia_id ON ventas (medio_transferencia_id);
+    CREATE INDEX IF NOT EXISTS idx_ventas_usuario_cobro_id ON ventas (usuario_cobro_id);
+  `);
+}
+
 function ensureSesionesCajaNullable() {
   const tableInfo = db.prepare('PRAGMA table_info(sesiones)').all();
   const cajaColumn = tableInfo.find((column) => column.name === 'caja_id');
@@ -29,44 +121,7 @@ function ensureSesionesCajaNullable() {
 }
 
 function ensureVentasTransferenciaSchema() {
-  const tableInfo = db.prepare('PRAGMA table_info(ventas)').all();
-  const medioTransferenciaColumn = tableInfo.find((column) => column.name === 'medio_transferencia_id');
-  const comentarioColumn = tableInfo.find((column) => column.name === 'comentario');
-
-  if (medioTransferenciaColumn && comentarioColumn) {
-    db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_ventas_medio_transferencia_id ON ventas (medio_transferencia_id);
-    `);
-
-    return;
-  }
-
-  db.exec(`
-    ALTER TABLE ventas RENAME TO ventas_old;
-
-    CREATE TABLE ventas (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      pedido_id TEXT NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
-      caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
-      total REAL NOT NULL CHECK (total >= 0),
-      monto_efectivo REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
-      monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
-      medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
-      comentario TEXT,
-      metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
-      pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    INSERT INTO ventas (id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at)
-    SELECT id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, NULL, NULL, metodo_pago, pagado_at
-    FROM ventas_old;
-
-    DROP TABLE ventas_old;
-  `);
-
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_ventas_medio_transferencia_id ON ventas (medio_transferencia_id);
-  `);
+  ensureVentasSchema();
 }
 
 function runMigrations() {
@@ -241,6 +296,7 @@ function runMigrations() {
   `);
 
   ensureVentasTransferenciaSchema();
+  ensureSesionesSchema();
   ensureSesionesCajaNullable();
   ensureDefaultMediosPago();
 }

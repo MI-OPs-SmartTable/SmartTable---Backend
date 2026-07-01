@@ -104,6 +104,7 @@ function runMigrations() {
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
       caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
+      rol_sesion TEXT NOT NULL DEFAULT 'titular' CHECK (rol_sesion IN ('titular', 'colaborador')),
       inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
       fin_at TEXT
     );
@@ -136,6 +137,7 @@ function runMigrations() {
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       pedido_id TEXT NOT NULL UNIQUE REFERENCES pedidos(id) ON DELETE CASCADE,
       caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
+      usuario_cobro_id TEXT REFERENCES usuarios(id) ON DELETE RESTRICT,
       total REAL NOT NULL CHECK (total >= 0),
       monto_efectivo REAL NOT NULL DEFAULT 0 CHECK (monto_efectivo >= 0),
       monto_transferencia REAL NOT NULL DEFAULT 0 CHECK (monto_transferencia >= 0),
@@ -266,7 +268,11 @@ function seedDatabase() {
   db.prepare("INSERT INTO cajas (id, usuario_id, monto_apertura, monto_cierre, apertura_at, cierre_at, estado) VALUES (?, ?, ?, ?, datetime('now'), NULL, ?)").run(cajaAbiertaId, anaId, 50000, 0, 'abierta');
 
   const sesionActivaId = randomUUID().replace(/-/g, '').toLowerCase();
-  db.prepare("INSERT INTO sesiones (id, usuario_id, caja_id, inicio_at, fin_at) VALUES (?, ?, ?, datetime('now'), NULL)").run(sesionActivaId, anaId, cajaAbiertaId);
+  db.prepare("INSERT INTO sesiones (id, usuario_id, caja_id, rol_sesion, inicio_at, fin_at) VALUES (?, ?, ?, 'titular', datetime('now'), NULL)").run(sesionActivaId, anaId, cajaAbiertaId);
+
+  db.exec(`
+    CREATE UNIQUE INDEX ux_sesiones_usuario_activa ON sesiones (usuario_id) WHERE fin_at IS NULL;
+  `);
 
   const pedidoId = randomUUID().replace(/-/g, '').toLowerCase();
   db.prepare("INSERT INTO pedidos (id, mesa_id, usuario_id, caja_id, estado, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))").run(pedidoId, mesa1Id, mariaId, cajaAbiertaId, 'abierto');

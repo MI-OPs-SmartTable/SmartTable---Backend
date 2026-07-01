@@ -13,9 +13,16 @@ async function getAuthHeader(userId) {
 
 describe('Pedidos', () => {
   let cajeroAuthHeader;
+  let adminAuthHeader;
 
   beforeAll(async () => {
     cajeroAuthHeader = await getAuthHeader(db.seedData.luisId);
+    adminAuthHeader = await getAuthHeader(db.seedData.anaId);
+
+    await request(app)
+      .post(`/api/cajas/${db.seedData.cajaAbiertaId}/colaboradores`)
+      .set('Authorization', adminAuthHeader)
+      .send({ usuario_id: db.seedData.luisId });
   });
 
   it('no debe permitir crear un pedido para una mesa que ya está por cobrar', async () => {
@@ -24,7 +31,6 @@ describe('Pedidos', () => {
       .set('Authorization', cajeroAuthHeader)
       .send({
         usuario_id: db.seedData.mariaId,
-        caja_id: db.seedData.cajaAbiertaId,
         mesa_id: db.seedData.mesa1Id,
         items: [
           {
@@ -46,7 +52,6 @@ describe('Pedidos', () => {
       .set('Authorization', cajeroAuthHeader)
       .send({
         usuario_id: db.seedData.mariaId,
-        caja_id: db.seedData.cajaAbiertaId,
         mesa_id: db.seedData.mesa2Id,
         items: [
           {

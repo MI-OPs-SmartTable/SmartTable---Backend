@@ -1,5 +1,6 @@
 const db = require('../database/db');
 const { ensureActive, ensureCajaAbierta, ensureNonNegative, ensureText, fetchById, normalizeText, newId } = require('./_utils');
+const sesiones = require('./sesiones');
 
 const METODOS_PAGO = ['efectivo', 'transferencia', 'mixto'];
 
@@ -14,7 +15,14 @@ function getById(id) {
 function create(data) {
   const pedidoId = ensureText(data.pedido_id, 'El pedido_id de la venta');
   const cajaId = ensureText(data.caja_id, 'El caja_id de la venta');
+  const usuarioCobroId = ensureText(data.usuario_cobro_id, 'El usuario_cobro_id de la venta');
   ensureCajaAbierta(db, cajaId);
+  ensureText(usuarioCobroId, 'El usuario_cobro_id de la venta');
+  ensureActive(db, 'usuarios', usuarioCobroId, 'Usuario');
+
+  if (!sesiones.usuarioPuedeOperarCaja(usuarioCobroId, cajaId)) {
+    throw new Error('El usuario no tiene sesión activa para operar esta caja');
+  }
 
   const pedido = db.prepare('SELECT * FROM pedidos WHERE id = ?').get(pedidoId);
   if (!pedido) {
@@ -94,11 +102,12 @@ function create(data) {
     const ventaId = newId();
 
     db.prepare(
-      'INSERT INTO ventas (id, pedido_id, caja_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
+      'INSERT INTO ventas (id, pedido_id, caja_id, usuario_cobro_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
     ).run(
       ventaId,
       payload.pedidoId,
       payload.cajaId,
+      payload.usuarioCobroId,
       payload.total,
       payload.montoEfectivo,
       payload.montoTransferencia,
@@ -120,6 +129,7 @@ function create(data) {
     comentario,
     medioTransferenciaId,
     pedidoId,
+    usuarioCobroId,
     total,
   });
 }
