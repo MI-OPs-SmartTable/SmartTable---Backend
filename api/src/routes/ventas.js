@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const auth = require('../middlewares/auth');
 const { requireRol } = auth;
-const validarCajaAbierta = require('../middlewares/validarCajaAbierta');
+const pedidos = require('../models/pedidos');
+const sesiones = require('../models/sesiones');
 const ventas = require('../models/ventas');
 
 function isMissing(value) {
@@ -23,6 +24,9 @@ function handleError(res, err) {
     message.includes('ya fue pagado')
   ) {
     return res.status(400).json({ error: message });
+  }
+  if (message.includes('sesión activa')) {
+    return res.status(403).json({ error: message });
   }
   return res.status(500).json({ error: message });
 }
@@ -50,26 +54,33 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  return validarCajaAbierta(req, res, () => {
-    try {
-      if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
-      if (req.body.pagos === undefined || req.body.pagos === null || typeof req.body.pagos !== 'object') {
-        return res.status(400).json({ error: 'Campo pagos requerido' });
-      }
-
-      req.body.pagos = {
-        monto_efectivo: req.body.pagos.monto_efectivo ?? 0,
-        monto_transferencia: req.body.pagos.monto_transferencia ?? 0,
-        medio_transferencia_id: req.body.pagos.medio_transferencia_id,
-        banco_nombre: req.body.pagos.banco_nombre,
-        comentario: req.body.pagos.comentario ?? req.body.pagos.descripcion ?? req.body.pagos.descripcion_transferencia,
-      };
-
-      return res.status(201).json(ventas.create(req.body));
-    } catch (err) {
-      return handleError(res, err);
+  try {
+    if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
+    if (req.body.pagos === undefined || req.body.pagos === null || typeof req.body.pagos !== 'object') {
+      return res.status(400).json({ error: 'Campo pagos requerido' });
     }
-  });
+
+    const pedido = pedidos.getById(req.body.pedido_id);
+    if (!sesiones.usuarioPuedeOperarCaja(req.usuario.id, pedido.caja_id)) {
+      return res.status(403).json({ error: 'No tiene sesión activa para operar esta caja' });
+    }
+
+    req.body.pagos = {
+      monto_efectivo: req.body.pagos.monto_efectivo ?? 0,
+      monto_transferencia: req.body.pagos.monto_transferencia ?? 0,
+      medio_transferencia_id: req.body.pagos.medio_transferencia_id,
+      banco_nombre: req.body.pagos.banco_nombre,
+      comentario: req.body.pagos.comentario ?? req.body.pagos.descripcion ?? req.body.pagos.descripcion_transferencia,
+    };
+
+    return res.status(201).json(ventas.create({
+      ...req.body,
+      caja_id: pedido.caja_id,
+      usuario_cobro_id: req.usuario.id,
+    }));
+  } catch (err) {
+    return handleError(res, err);
+  }
 });
 
 module.exports = router;

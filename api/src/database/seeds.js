@@ -109,7 +109,7 @@ function runSeeds() {
 
     const sesionActivaId = randomUUID().replace(/-/g, '').toLowerCase();
 
-    db.prepare('INSERT INTO sesiones (id, usuario_id, caja_id, inicio_at, fin_at) VALUES (?, ?, ?, datetime(\'now\'), NULL)').run(sesionActivaId, anaId, cajaAbiertaId);
+    db.prepare('INSERT INTO sesiones (id, usuario_id, caja_id, rol_sesion, inicio_at, fin_at) VALUES (?, ?, ?, \'titular\', datetime(\'now\'), NULL)').run(sesionActivaId, anaId, cajaAbiertaId);
 
     const pedidoId = randomUUID().replace(/-/g, '').toLowerCase();
 

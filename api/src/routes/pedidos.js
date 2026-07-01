@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const auth = require('../middlewares/auth');
 const { requireRol } = auth;
-const validarCajaAbierta = require('../middlewares/validarCajaAbierta');
 const pedidos = require('../models/pedidos');
+const sesiones = require('../models/sesiones');
 
 function isMissing(value) {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
@@ -22,6 +22,9 @@ function handleError(res, err) {
     message.includes('ya tiene un pedido pendiente')
   ) {
     return res.status(400).json({ error: message });
+  }
+  if (message.includes('sesión activa')) {
+    return res.status(409).json({ error: message });
   }
   return res.status(500).json({ error: message });
 }
@@ -57,15 +60,21 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  return validarCajaAbierta(req, res, () => {
-    try {
-      if (isMissing(req.body.usuario_id)) return res.status(400).json({ error: 'Campo usuario_id requerido' });
+  try {
+    if (isMissing(req.body.usuario_id)) return res.status(400).json({ error: 'Campo usuario_id requerido' });
 
-      return res.status(201).json(pedidos.create(req.body));
-    } catch (err) {
-      return handleError(res, err);
+    const sesionActiva = sesiones.getActivaByUsuario(req.usuario.id);
+    if (!sesionActiva) {
+      return res.status(409).json({ error: 'Debe tener una sesión de caja activa para crear pedidos' });
     }
-  });
+
+    return res.status(201).json(pedidos.create({
+      ...req.body,
+      caja_id: sesionActiva.caja_id,
+    }));
+  } catch (err) {
+    return handleError(res, err);
+  }
 });
 
 router.put('/:id', (req, res) => {

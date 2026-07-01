@@ -3,8 +3,8 @@ const jwt = require('jsonwebtoken');
 const db = require('../database/db');
 const auth = require('../middlewares/auth');
 const cajas = require('../models/cajas');
+const sesiones = require('../models/sesiones');
 const { verifyPin } = require('../middlewares/hashPin');
-const { newId } = require('../models/_utils');
 
 router.get('/usuarios', (req, res) => {
   try {
@@ -53,10 +53,6 @@ router.post('/login', (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
     );
 
-    db.prepare(
-      'INSERT INTO sesiones (id, usuario_id, caja_id, inicio_at, fin_at) VALUES (?, ?, NULL, datetime(\'now\'), NULL)'
-    ).run(newId(), usuario.id);
-
     const usuarioAutenticado = db.prepare(`
       SELECT u.id, u.nombre_completo, r.nombre AS rol
       FROM usuarios u
@@ -87,18 +83,16 @@ router.post('/logout', auth, (req, res) => {
   try {
     const cajaAbierta = cajas.getCajaAbierta(req.usuario.id);
     if (cajaAbierta) {
-      cajas.cerrar(cajaAbierta.id, {});
+      const cajaCerrada = cajas.cerrar(cajaAbierta.id, {});
+      sesiones.cerrarPorCaja(cajaCerrada.id, cajaCerrada.cierre_at);
+      return res.status(200).json({ message: 'Sesión cerrada correctamente' });
     }
 
-    const sesion = db.prepare(
-      'SELECT * FROM sesiones WHERE usuario_id = ? AND fin_at IS NULL ORDER BY inicio_at DESC LIMIT 1'
-    ).get(req.usuario.id);
-
-    if (!sesion) {
-      return res.status(404).json({ error: 'No hay sesión activa' });
+    const sesionActiva = sesiones.getActivaByUsuario(req.usuario.id);
+    if (sesionActiva) {
+      sesiones.cerrarSesion(sesionActiva.id, {});
+      return res.status(200).json({ message: 'Sesión cerrada correctamente' });
     }
-
-    db.prepare('UPDATE sesiones SET fin_at = datetime(\'now\') WHERE id = ?').run(sesion.id);
 
     return res.status(200).json({ message: 'Sesión cerrada correctamente' });
   } catch (err) {

@@ -5,6 +5,10 @@ function getAll() {
   return db.prepare('SELECT * FROM cajas ORDER BY apertura_at DESC').all();
 }
 
+function getAbiertas() {
+  return db.prepare('SELECT * FROM cajas WHERE estado = ? ORDER BY apertura_at DESC').all('abierta');
+}
+
 function getById(id) {
   return fetchById(db, 'cajas', id, 'Caja');
 }
@@ -106,4 +110,4 @@ function open(id) {
   return getById(id);
 }
 
-module.exports = { abrir, close, cerrar, create, getAll, getById, getCajaAbierta, open, update };
+module.exports = { abrir, close, cerrar, create, getAbiertas, getAll, getById, getCajaAbierta, open, update };

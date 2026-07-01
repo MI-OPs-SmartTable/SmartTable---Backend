@@ -40,7 +40,13 @@ function buildPathParameters(openApiPath) {
     name: match[1],
     in: 'path',
     required: true,
-    schema: { type: 'string' }
+    description: match[1] === 'id'
+      ? 'Identificador del recurso.'
+      : `Identificador de ${match[1].replace(/_id$/, '').replace(/_/g, ' ')}.`,
+    schema: {
+      type: 'string',
+      example: `${match[1]}_123`
+    }
   }));
 }
 
@@ -209,6 +215,255 @@ function buildOperation(method, openApiPath, tag) {
     };
   }
 
+  if (tag === 'Cajas' && method === 'get' && openApiPath.endsWith('/abiertas-con-colaboradores')) {
+    operation.summary = 'Listar cajas abiertas con colaboradores';
+    operation.description = 'Devuelve todas las cajas abiertas junto con las sesiones colaborador activas asociadas.';
+    operation.responses = {
+      200: {
+        description: 'Listado de cajas abiertas con colaboradores',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  usuario_id: { type: 'string' },
+                  estado: { type: 'string' },
+                  colaboradores: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        sesion_id: { type: 'string' },
+                        usuario_id: { type: 'string' },
+                        caja_id: { type: 'string' },
+                        rol_sesion: { type: 'string', example: 'colaborador' },
+                        inicio_at: { type: 'string' },
+                        fin_at: { type: 'string', nullable: true },
+                        nombre_completo: { type: 'string' },
+                        email: { type: 'string' },
+                        rol: { type: 'string' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Cajas' && method === 'get' && /\/api\/cajas\/\{id\}\/colaboradores$/.test(openApiPath)) {
+    operation.summary = 'Listar colaboradores de una caja';
+    operation.description = 'Devuelve la caja y las sesiones colaborador activas asociadas.';
+    operation.responses = {
+      200: {
+        description: 'Colaboradores de la caja',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                caja: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    usuario_id: { type: 'string' },
+                    estado: { type: 'string' }
+                  }
+                },
+                colaboradores: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      sesion_id: { type: 'string' },
+                      usuario_id: { type: 'string' },
+                      caja_id: { type: 'string' },
+                      rol_sesion: { type: 'string', example: 'colaborador' },
+                      inicio_at: { type: 'string' },
+                      fin_at: { type: 'string', nullable: true },
+                      nombre_completo: { type: 'string' },
+                      email: { type: 'string' },
+                      rol: { type: 'string' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      404: { description: 'Caja no encontrada' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Cajas' && method === 'post' && openApiPath === '/api/cajas/abrir') {
+    operation.summary = 'Abrir caja con sesion titular';
+    operation.description = 'Abre una caja y crea la sesion titular asociada. Solo disponible para admin o cajero.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['usuario_id', 'monto_apertura'],
+            properties: {
+              usuario_id: { type: 'string', example: 'usuario_titular_123' },
+              monto_apertura: { type: 'number', minimum: 0, example: 50000 },
+              inicio_at: { type: 'string', nullable: true, example: '2026-07-01T10:00:00.000Z' }
+            }
+          },
+          examples: {
+            apertura_caja: {
+              value: {
+                usuario_id: 'usuario_titular_123',
+                monto_apertura: 50000
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      201: {
+        description: 'Caja abierta',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                usuario_id: { type: 'string' },
+                monto_apertura: { type: 'number' },
+                estado: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Solicitud invalida' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      409: {
+        description: 'Conflicto de sesion o caja abierta',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Cajas' && method === 'post' && /\/api\/cajas\/\{id\}\/colaboradores$/.test(openApiPath)) {
+    operation.summary = 'Agregar colaborador a una caja';
+    operation.description = 'Crea una sesion colaborador para una caja ya abierta. Solo el titular de la caja o un admin puede usarlo.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['usuario_id'],
+            properties: {
+              usuario_id: { type: 'string', example: 'usuario_colaborador_123' },
+              inicio_at: { type: 'string', nullable: true, example: '2026-07-01T11:00:00.000Z' }
+            }
+          },
+          examples: {
+            colaborador: {
+              value: {
+                usuario_id: 'usuario_colaborador_123'
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      201: {
+        description: 'Colaborador agregado',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                usuario_id: { type: 'string' },
+                caja_id: { type: 'string' },
+                rol_sesion: { type: 'string', example: 'colaborador' },
+                inicio_at: { type: 'string' },
+                fin_at: { type: 'string', nullable: true }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Solicitud invalida' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      404: { description: 'Caja no encontrada' },
+      409: {
+        description: 'El usuario ya tiene una sesion activa',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                error: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Cajas' && method === 'post' && openApiPath.endsWith('/cerrar')) {
+    operation.summary = 'Cerrar caja y sus sesiones';
+    operation.description = 'Cierra la caja y finaliza en cascada todas las sesiones activas asociadas.';
+    operation.responses = {
+      200: {
+        description: 'Caja cerrada',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                usuario_id: { type: 'string' },
+                estado: { type: 'string', example: 'cerrada' },
+                cierre_at: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      404: { description: 'No encontrado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
   // Documentacion especifica para crear productos: incluir precio e insumos
   if (tag === 'Productos' && method === 'post' && openApiPath === '/api/productos') {
     operation.summary = 'Crear producto (con variante por defecto e insumos)';
@@ -291,17 +546,16 @@ function buildOperation(method, openApiPath, tag) {
 
   if (tag === 'Ventas' && method === 'post' && openApiPath === '/api/ventas') {
     operation.summary = 'Registrar venta';
-    operation.description = 'Registra el pago de un pedido usando efectivo, transferencia o ambos. Si hay transferencia, debe enviarse un medio_transferencia_id válido.';
+    operation.description = 'Registra el pago de un pedido usando efectivo, transferencia o ambos. La caja se toma del pedido y el cobrador debe tener una sesion activa en esa caja. Si hay transferencia, debe enviarse un medio_transferencia_id válido.';
     operation.requestBody = {
       required: true,
       content: {
         'application/json': {
           schema: {
             type: 'object',
-            required: ['pedido_id', 'caja_id', 'pagos'],
+            required: ['pedido_id', 'pagos'],
             properties: {
               pedido_id: { type: 'string', example: 'pedido_123' },
-              caja_id: { type: 'string', example: 'caja_123' },
               pagos: {
                 type: 'object',
                 required: ['monto_efectivo', 'monto_transferencia'],
@@ -334,7 +588,6 @@ function buildOperation(method, openApiPath, tag) {
             venta_transferencia: {
               value: {
                 pedido_id: 'pedido_123',
-                caja_id: 'caja_123',
                 pagos: {
                   monto_efectivo: 0,
                   monto_transferencia: 32000,
@@ -358,6 +611,7 @@ function buildOperation(method, openApiPath, tag) {
                 id: { type: 'string' },
                 pedido_id: { type: 'string' },
                 caja_id: { type: 'string' },
+                usuario_cobro_id: { type: 'string' },
                 total: { type: 'number' },
                 monto_efectivo: { type: 'number' },
                 monto_transferencia: { type: 'number' },
@@ -373,7 +627,65 @@ function buildOperation(method, openApiPath, tag) {
       400: { description: 'Solicitud inválida' },
       401: { description: 'Autenticación requerida' },
       403: { description: 'No autorizado' },
+      409: { description: 'El usuario no tiene una sesion activa en esa caja' },
       404: { description: 'No encontrado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Pedidos' && method === 'post' && openApiPath === '/api/pedidos') {
+    operation.summary = 'Crear pedido en la caja activa del usuario';
+    operation.description = 'Crea un pedido usando la caja activa asociada a la sesion del usuario autenticado. No recibe caja_id en el cuerpo.';
+    operation.requestBody = {
+      required: true,
+      content: {
+        'application/json': {
+          schema: {
+            type: 'object',
+            required: ['usuario_id', 'items'],
+            properties: {
+              usuario_id: { type: 'string', example: 'usuario_mesero_123' },
+              mesa_id: { type: 'string', nullable: true, example: 'mesa_123' },
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['variante_id', 'cantidad'],
+                  properties: {
+                    variante_id: { type: 'string', example: 'variante_123' },
+                    cantidad: { type: 'number', minimum: 0.0001, example: 1 },
+                    precio_unitario: { type: 'number', minimum: 0, nullable: true, example: 3500 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+    operation.responses = {
+      201: {
+        description: 'Pedido creado',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                usuario_id: { type: 'string' },
+                caja_id: { type: 'string' },
+                mesa_id: { type: 'string', nullable: true },
+                estado: { type: 'string' },
+                created_at: { type: 'string' }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Solicitud invalida' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      409: { description: 'El usuario no tiene una sesion de caja activa' },
       500: { description: 'Error interno' }
     };
   }
@@ -448,10 +760,12 @@ function buildOperation(method, openApiPath, tag) {
   if (['post', 'put', 'patch'].includes(method) && !operation.requestBody) {
     operation.requestBody = {
       required: true,
+      description: 'Campos JSON que espera este endpoint.',
       content: {
         'application/json': {
           schema: {
             type: 'object',
+            description: 'Completa los campos requeridos visibles en el esquema del endpoint.',
             additionalProperties: true
           }
         }
