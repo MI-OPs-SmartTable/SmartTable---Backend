@@ -40,6 +40,30 @@ function canAssignRoleInProduction(rolId) {
   return rol ? allowedProductionRoles.has(rol.nombre) : false;
 }
 
+function hasDuplicateNombreCompleto(nombreCompleto, excludeId = null) {
+  if (isMissing(nombreCompleto)) {
+    return false;
+  }
+
+  if (excludeId) {
+    const duplicate = db.prepare(`
+      SELECT id
+      FROM usuarios
+      WHERE nombre_completo = ? AND activo = 1 AND id <> ?
+      LIMIT 1
+    `).get(String(nombreCompleto).trim(), excludeId);
+    return Boolean(duplicate);
+  }
+
+  const duplicate = db.prepare(`
+    SELECT id
+    FROM usuarios
+    WHERE nombre_completo = ? AND activo = 1
+    LIMIT 1
+  `).get(String(nombreCompleto).trim());
+  return Boolean(duplicate);
+}
+
 function getAll(req, res) {
   try {
     return res.status(200).json(usuarios.getAll().map(sanitizeUsuario));
@@ -75,6 +99,9 @@ function createUsuario(req, res) {
     if (isMissing(req.body.rol_id)) return res.status(400).json({ error: 'Campo rol_id requerido' });
     if (isMissing(req.body.nombre_completo)) return res.status(400).json({ error: 'Campo nombre_completo requerido' });
     if (isMissing(req.body.email)) return res.status(400).json({ error: 'Campo email requerido' });
+    if (hasDuplicateNombreCompleto(req.body.nombre_completo)) {
+      return res.status(409).json({ error: 'Ya existe un usuario activo con ese nombre_completo' });
+    }
 
     const pinHash = resolvePinHash(req.body);
     if (!pinHash) return res.status(400).json({ error: 'Campo pin o pin_hash requerido' });
@@ -92,6 +119,9 @@ function createUsuario(req, res) {
 function updateUsuario(req, res) {
   try {
     const body = { ...(req.body || {}) };
+    if (!isMissing(body.nombre_completo) && hasDuplicateNombreCompleto(body.nombre_completo, req.params.id)) {
+      return res.status(409).json({ error: 'Ya existe un usuario activo con ese nombre_completo' });
+    }
     const pinHash = resolvePinHash(body);
     if (pinHash) {
       body.pin_hash = pinHash;

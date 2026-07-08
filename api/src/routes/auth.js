@@ -30,7 +30,20 @@ router.post('/login', (req, res) => {
       return res.status(400).json({ error: 'nombre_completo y pin requeridos' });
     }
 
-    const usuario = db.prepare('SELECT * FROM usuarios WHERE nombre_completo = ?').get(nombre_completo);
+    const matches = db.prepare(`
+      SELECT *
+      FROM usuarios
+      WHERE nombre_completo = ? AND activo = 1
+      ORDER BY created_at ASC
+    `).all(nombre_completo);
+
+    if (matches.length > 1) {
+      return res.status(409).json({
+        error: 'Hay más de un usuario activo con ese nombre_completo. Use un identificador único.',
+      });
+    }
+
+    const usuario = matches[0];
 
     if (!usuario || usuario.activo === 0) {
       return res.status(401).json({ error: 'Credenciales inválidas' });

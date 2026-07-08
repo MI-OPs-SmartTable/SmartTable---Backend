@@ -8,6 +8,7 @@
     "seed": "node api/src/database/seeds.js",
     "seed:pos": "node api/src/database/seedsPosCatalog.js",
     "seed:pos:force": "node api/src/database/seedsPosCatalog.js --force",
+    "backup:run": "node api/src/services/backup/runOnce.js",
     "test": "jest --runInBand"
   },
   "jest": {
@@ -32,7 +33,9 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.6.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1"
   },

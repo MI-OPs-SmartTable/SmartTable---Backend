@@ -49,10 +49,50 @@ environment=PRODUCTION
 
 Según ese valor, la app toma automáticamente el secreto correspondiente desde `JWT_SECRET_DEVELOPMENT` o `JWT_SECRET_PRODUCTION` y también ajusta `NODE_ENV` para mantener compatibilidad con el resto del código.
 
+### Notas de entorno (dev/prod)
+
+- Algunas rutas tienen permisos distintos entre desarrollo y producción.
+- En producción se exige autenticación/rol en endpoints sensibles y ciertas operaciones quedan bloqueadas.
+- Para evitar comportamientos inesperados, define explícitamente `environment=DEVELOPMENT` en local y `environment=PRODUCTION` en despliegues.
+
 Si tu frontend corre en otro puerto u host, define también `CORS_ORIGIN` para autorizar uno o varios orígenes separados por comas. Por defecto el backend permite `http://localhost:3030` y `http://localhost:5173`.
 
 ```env
 CORS_ORIGIN=http://localhost:3030,http://localhost:5173
+```
+
+## Respaldo automático de la base de datos
+
+El backend incluye un servicio que crea copias de seguridad de SQLite de forma periódica. Se inicia automáticamente al levantar el servidor (`npm start`).
+
+### Comportamiento
+
+- Crea un respaldo seguro con `better-sqlite3` (compatible con modo `WAL`).
+- Comprime el archivo como `.db.gz`.
+- Usa siempre el mismo nombre de archivo y lo sobrescribe localmente en cada ciclo.
+- Por defecto guarda la copia en una carpeta `backups/` junto al archivo de la base de datos (`pos.db`).
+- Opcionalmente sube el mismo archivo a Google Drive, actualizándolo si ya existe.
+
+### Configuración
+
+La configuración del respaldo se gestiona desde la app, en **Configuración → Respaldo** (solo admin). Se guarda en `backup-config.json` junto a la base de datos.
+
+En la app de escritorio (Electron), eso queda en la carpeta de datos del usuario (`AppData`), no en la carpeta de instalación.
+
+### Configurar Google Drive
+
+1. Crea un proyecto en [Google Cloud Console](https://console.cloud.google.com/).
+2. Habilita la API de **Google Drive**.
+3. Crea una **cuenta de servicio** y descarga el JSON de credenciales.
+4. Crea una carpeta en Google Drive y compártela con el email de la cuenta de servicio (permiso de editor).
+5. En la app, ve a **Configuración → Respaldo**, sube el JSON, pega el ID de la carpeta y activa Google Drive.
+
+### Ejecución manual
+
+Para probar un respaldo sin esperar al intervalo:
+
+```bash
+npm run backup:run
 ```
 
 ## Documentacion Swagger
@@ -100,6 +140,10 @@ El endpoint de autenticación ahora utiliza el nombre completo del usuario en lu
 	- `401` — Credenciales inválidas: `{ "error": "Credenciales inválidas" }`.
 
 - Notas:
-	- El servidor espera que `nombre_completo` identifique al usuario; si tu base de datos permite duplicados, considera usar un identificador único (como `email` o `username`).
+	- El login usa `nombre_completo`; ahora el backend evita crear/editar usuarios activos con nombres duplicados para evitar ambigüedad.
 	- El JWT se firma con la variable de entorno `JWT_SECRET` y su expiración puede establecerse con `JWT_EXPIRES_IN` (por defecto `8h`).
+
+## Observación de codificación
+
+Si en tu editor algunos acentos se ven raros, revisa que el archivo esté en UTF-8. Eso no cambia la lógica del backend.
 

@@ -22,6 +22,11 @@ process.env.JWT_SECRET = environment === 'PRODUCTION'
   ? process.env.JWT_SECRET_PRODUCTION || process.env.JWT_SECRET
   : process.env.JWT_SECRET_DEVELOPMENT || process.env.JWT_SECRET;
 
+console.log(`[env] SmartTable backend en modo ${process.env.environment}`);
+if (process.env.NODE_ENV !== 'production') {
+  console.warn('[env] DEVELOPMENT activo: algunas rutas tienen permisos más flexibles para pruebas locales.');
+}
+
 const express = require('express');
 const cors = require('cors');
 const logger = require('./middlewares/logger');
@@ -88,6 +93,7 @@ app.use('/api/items-pedido', require('./routes/items_pedido'));
 app.use('/api/medios-pago-transferencia', require('./routes/medios_pago_transferencia'));
 app.use('/api/ventas', require('./routes/ventas'));
 app.use('/api/gastos-caja', require('./routes/gastos_caja'));
+app.use('/api/backup', require('./routes/backup'));
 
 const frontendDist = process.env.FRONTEND_DIST;
 if (frontendDist) {
