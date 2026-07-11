@@ -49,10 +49,15 @@ function getConfig() {
     ...(stored || {}),
   };
 
+  const credentials = getCredentialsStatus();
+
   return {
     ...merged,
-    credentialsConfigured: hasCredentialsFile(),
-    credentialsEmail: getCredentialsEmail(),
+    credentialsConfigured: credentials.configured,
+    credentialsEmail: credentials.credentialsEmail,
+    credentialsType: credentials.credentialsType,
+    oauthPending: credentials.oauthPending,
+    oauthClientConfigured: credentials.oauthClientConfigured,
   };
 }
 
@@ -68,6 +73,9 @@ function getPublicConfig() {
     googleDriveFolderId: config.googleDriveFolderId,
     credentialsConfigured: config.credentialsConfigured,
     credentialsEmail: config.credentialsEmail,
+    credentialsType: config.credentialsType,
+    oauthPending: config.oauthPending,
+    oauthClientConfigured: config.oauthClientConfigured,
     lastRunAt: config.lastRunAt,
     lastRunStatus: config.lastRunStatus,
     lastRunError: config.lastRunError,
@@ -83,6 +91,9 @@ function saveConfig(updates) {
     ...updates,
     credentialsConfigured: undefined,
     credentialsEmail: undefined,
+    credentialsType: undefined,
+    oauthPending: undefined,
+    oauthClientConfigured: undefined,
   };
 
   const configPath = getConfigPath();
@@ -113,11 +124,49 @@ function getCredentialsPath() {
   return path.join(path.dirname(getDbPath()), 'credentials', 'google-service-account.json');
 }
 
-function hasCredentialsFile() {
-  return fs.existsSync(getCredentialsPath());
+function getBundledOAuthClient() {
+  const clientId = String(process.env.GOOGLE_OAUTH_CLIENT_ID || '').trim();
+  const clientSecret = String(process.env.GOOGLE_OAUTH_CLIENT_SECRET || '').trim();
+
+  if (clientId && clientSecret) {
+    return {
+      type: 'oauth_client',
+      client_id: clientId,
+      client_secret: clientSecret,
+    };
+  }
+
+  const clientPath = String(process.env.GOOGLE_OAUTH_CLIENT_PATH || '').trim();
+  if (!clientPath) {
+    return null;
+  }
+
+  const resolved = path.isAbsolute(clientPath)
+    ? clientPath
+    : path.join(process.cwd(), clientPath);
+
+  if (!fs.existsSync(resolved)) {
+    return null;
+  }
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(resolved, 'utf8'));
+    const installed = raw.installed || raw.web || raw;
+    if (installed?.client_id && installed?.client_secret) {
+      return {
+        type: 'oauth_client',
+        client_id: installed.client_id,
+        client_secret: installed.client_secret,
+      };
+    }
+  } catch (error) {
+    console.error('[backup] No se pudo leer GOOGLE_OAUTH_CLIENT_PATH:', error.message);
+  }
+
+  return null;
 }
 
-function getCredentialsEmail() {
+function readCredentialsFile() {
   const credentialsPath = getCredentialsPath();
 
   if (!fs.existsSync(credentialsPath)) {
@@ -125,30 +174,93 @@ function getCredentialsEmail() {
   }
 
   try {
-    const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
-    return credentials.client_email || null;
+    return JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
   } catch {
     return null;
   }
 }
 
-function saveCredentials(credentials) {
-  if (!credentials || typeof credentials !== 'object') {
-    throw new Error('Credenciales inválidas');
-  }
-
-  if (!credentials.client_email || !credentials.private_key) {
-    throw new Error('El JSON debe ser de una cuenta de servicio de Google (client_email y private_key)');
-  }
-
+function writeCredentialsFile(credentials) {
   const credentialsPath = getCredentialsPath();
   fs.mkdirSync(path.dirname(credentialsPath), { recursive: true });
   fs.writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2), 'utf8');
+}
+
+function hasCredentialsFile() {
+  return Boolean(readCredentialsFile());
+}
+
+function getCredentialsStatus() {
+  const bundled = getBundledOAuthClient();
+  const credentials = readCredentialsFile();
+
+  if (credentials?.type === 'authorized_user' && credentials.refresh_token) {
+    return {
+      configured: true,
+      credentialsEmail: credentials.email || 'Cuenta Google conectada',
+      credentialsType: 'oauth',
+      oauthPending: false,
+      oauthClientConfigured: true,
+    };
+  }
+
+  if (bundled) {
+    return {
+      configured: false,
+      credentialsEmail: null,
+      credentialsType: 'oauth_pending',
+      oauthPending: true,
+      oauthClientConfigured: true,
+    };
+  }
+
+  if (credentials?.type === 'oauth_client' && credentials.client_id && credentials.client_secret) {
+    return {
+      configured: false,
+      credentialsEmail: null,
+      credentialsType: 'oauth_pending',
+      oauthPending: true,
+      oauthClientConfigured: true,
+    };
+  }
+
+  if (credentials?.type === 'service_account' || (credentials?.client_email && credentials?.private_key)) {
+    return {
+      configured: true,
+      credentialsEmail: credentials.client_email || null,
+      credentialsType: 'service_account',
+      oauthPending: false,
+      oauthClientConfigured: Boolean(bundled),
+    };
+  }
 
   return {
-    configured: true,
-    credentialsEmail: credentials.client_email,
+    configured: false,
+    credentialsEmail: null,
+    credentialsType: 'none',
+    oauthPending: false,
+    oauthClientConfigured: false,
   };
+}
+
+function getCredentialsEmail() {
+  return getCredentialsStatus().credentialsEmail;
+}
+
+function isCredentialsReady() {
+  return getCredentialsStatus().configured;
+}
+
+function saveAuthorizedUserCredentials({ client_id, client_secret, refresh_token, email }) {
+  writeCredentialsFile({
+    type: 'authorized_user',
+    client_id,
+    client_secret,
+    refresh_token,
+    email: email || null,
+  });
+
+  return getCredentialsStatus();
 }
 
 function deleteCredentials() {
@@ -158,7 +270,7 @@ function deleteCredentials() {
     fs.unlinkSync(credentialsPath);
   }
 
-  return { configured: false, credentialsEmail: null };
+  return getCredentialsStatus();
 }
 
 function isBackupEnabled() {
@@ -194,8 +306,12 @@ module.exports = {
   recordBackupResult,
   getCredentialsPath,
   hasCredentialsFile,
+  readCredentialsFile,
+  getBundledOAuthClient,
+  getCredentialsStatus,
   getCredentialsEmail,
-  saveCredentials,
+  isCredentialsReady,
+  saveAuthorizedUserCredentials,
   deleteCredentials,
   isBackupEnabled,
   isDriveEnabled,

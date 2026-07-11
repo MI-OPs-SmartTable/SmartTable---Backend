@@ -6,6 +6,12 @@ const {
   restartBackupScheduler,
   runBackupCycle,
 } = require('../services/backup/scheduler');
+const {
+  createOAuthStart,
+  completeOAuthCallback,
+  getOAuthRedirectUri,
+  revokeGoogleAccess,
+} = require('../services/backup/googleDrive');
 
 const adminOnly = [auth, requireRol('admin')];
 
@@ -72,9 +78,10 @@ router.put('/config', ...adminOnly, (req, res) => {
         ? String(googleDriveFolderId).trim()
         : current.googleDriveFolderId;
 
-      if (!backupConfigStore.hasCredentialsFile() || !folderId) {
+      if (!backupConfigStore.isCredentialsReady() || !folderId) {
         return res.status(400).json({
-          error: 'Para activar Google Drive necesitas subir credenciales y configurar el ID de carpeta',
+          error:
+            'Para activar Google Drive necesitas Conectar con Google y configurar el ID de carpeta',
         });
       }
     }
@@ -90,30 +97,78 @@ router.put('/config', ...adminOnly, (req, res) => {
 
 router.get('/credentials/status', ...adminOnly, (req, res) => {
   try {
-    return res.status(200).json({
-      configured: backupConfigStore.hasCredentialsFile(),
-      credentialsEmail: backupConfigStore.getCredentialsEmail(),
-    });
+    return res.status(200).json(backupConfigStore.getCredentialsStatus());
   } catch (err) {
     return handleError(res, err);
   }
 });
 
-router.post('/credentials', ...adminOnly, (req, res) => {
+router.delete('/credentials', ...adminOnly, async (req, res) => {
   try {
-    const result = backupConfigStore.saveCredentials(req.body);
+    const result = await revokeGoogleAccess();
+    return res.status(200).json(result);
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.post('/oauth/start', ...adminOnly, (req, res) => {
+  try {
+    const result = createOAuthStart();
     return res.status(200).json(result);
   } catch (err) {
     return handleError(res, err, 400);
   }
 });
 
-router.delete('/credentials', ...adminOnly, (req, res) => {
+// Callback público: Google redirige el navegador aquí (sin JWT).
+router.get('/oauth/callback', async (req, res) => {
   try {
-    const result = backupConfigStore.deleteCredentials();
-    return res.status(200).json(result);
+    const { code, state, error } = req.query;
+
+    if (error) {
+      return res
+        .status(400)
+        .send(`<h2>Autorización cancelada</h2><p>${String(error)}</p><p>Puedes cerrar esta ventana.</p>`);
+    }
+
+    const status = await completeOAuthCallback({
+      code: typeof code === 'string' ? code : '',
+      state: typeof state === 'string' ? state : '',
+    });
+
+    return res.status(200).send(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Google Drive conectado</title>
+          <style>
+            body { font-family: system-ui, sans-serif; max-width: 480px; margin: 48px auto; padding: 0 16px; color: #111827; }
+            .ok { color: #047857; }
+          </style>
+        </head>
+        <body>
+          <h2 class="ok">Cuenta de Google conectada</h2>
+          <p>${status.credentialsEmail ? `Sesión: <strong>${status.credentialsEmail}</strong>` : 'Autorización completada.'}</p>
+          <p>Vuelve a SmartTable, activa Google Drive si hace falta y pulsa <strong>Guardar configuración</strong>.</p>
+          <p>Ya puedes cerrar esta ventana.</p>
+        </body>
+      </html>
+    `);
   } catch (err) {
-    return handleError(res, err);
+    return res.status(400).send(`
+      <!doctype html>
+      <html lang="es">
+        <head><meta charset="utf-8" /><title>Error OAuth</title></head>
+        <body style="font-family: system-ui, sans-serif; max-width: 480px; margin: 48px auto; padding: 0 16px;">
+          <h2 style="color:#b91c1c">No se pudo conectar Google Drive</h2>
+          <p>${err.message || 'Error desconocido'}</p>
+          <p>URI de redirección esperada: <code>${getOAuthRedirectUri()}</code></p>
+          <p>Añade esa URI exacta en Google Cloud → Credenciales → tu cliente OAuth → URIs de redirección autorizadas.</p>
+        </body>
+      </html>
+    `);
   }
 });
 

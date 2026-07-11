@@ -81,11 +81,23 @@ En la app de escritorio (Electron), eso queda en la carpeta de datos del usuario
 
 ### Configurar Google Drive
 
-1. Crea un proyecto en [Google Cloud Console](https://console.cloud.google.com/).
-2. Habilita la API de **Google Drive**.
-3. Crea una **cuenta de servicio** y descarga el JSON de credenciales.
-4. Crea una carpeta en Google Drive y compártela con el email de la cuenta de servicio (permiso de editor).
-5. En la app, ve a **Configuración → Respaldo**, sube el JSON, pega el ID de la carpeta y activa Google Drive.
+OAuth con cliente **quemado en la app** (del proveedor). El cliente solo pega el ID de carpeta y autoriza su Gmail.
+
+**Proveedor (una vez):**
+1. Crea el proyecto OAuth en [Google Cloud Console](https://console.cloud.google.com/).
+2. Publica la app en producción (para no depender de usuarios de prueba).
+3. Pon en el `.env` (Frontend y/o Backend, Electron los pasa al proceso):
+   - `GOOGLE_OAUTH_CLIENT_ID`
+   - `GOOGLE_OAUTH_CLIENT_SECRET`
+4. URI de redirección: `http://127.0.0.1:8080/api/backup/oauth/callback`
+5. Crea la carpeta en tu Drive, compártela con el Gmail del cliente (Editor) y envíale el ID.
+
+**Cliente (en la app):**
+1. Pega el ID de carpeta.
+2. Pulsa **Conectar con Google** con su Gmail.
+3. Activa Drive y **Guardar configuración**.
+
+Las cuentas de servicio solo funcionan con **unidades compartidas** de Google Workspace.
 
 ### Ejecución manual
 

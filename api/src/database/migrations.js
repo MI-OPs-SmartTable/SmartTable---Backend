@@ -158,6 +158,7 @@ function runMigrations() {
     CREATE TABLE IF NOT EXISTS categorias (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       nombre TEXT NOT NULL UNIQUE,
+      emoji TEXT NOT NULL DEFAULT '📦',
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
     );
 
@@ -177,6 +178,7 @@ function runMigrations() {
       categoria_id TEXT NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
       nombre TEXT NOT NULL,
       descripcion TEXT,
+      emoji TEXT NOT NULL DEFAULT '📦',
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
     );
 
@@ -274,6 +276,19 @@ function runMigrations() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS compras_insumo (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      insumo_id TEXT NOT NULL REFERENCES insumos(id) ON DELETE CASCADE,
+      proveedor_id TEXT REFERENCES proveedores(id) ON DELETE SET NULL,
+      tipo TEXT NOT NULL CHECK (tipo IN ('agregar', 'fijar')),
+      cantidad REAL NOT NULL CHECK (cantidad >= 0),
+      cantidad_anterior REAL NOT NULL CHECK (cantidad_anterior >= 0),
+      cantidad_nueva REAL NOT NULL CHECK (cantidad_nueva >= 0),
+      costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0),
+      total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_usuarios_rol_id ON usuarios (rol_id);
     CREATE INDEX IF NOT EXISTS idx_insumos_proveedor_id ON insumos (proveedor_id);
     CREATE INDEX IF NOT EXISTS idx_productos_categoria_id ON productos (categoria_id);
@@ -293,12 +308,47 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_ventas_caja_id ON ventas (caja_id);
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_caja_id ON gastos_caja (caja_id);
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_usuario_id ON gastos_caja (usuario_id);
+    CREATE INDEX IF NOT EXISTS idx_compras_insumo_insumo_id ON compras_insumo (insumo_id);
+    CREATE INDEX IF NOT EXISTS idx_compras_insumo_created_at ON compras_insumo (created_at);
   `);
 
   ensureVentasTransferenciaSchema();
   ensureSesionesSchema();
   ensureSesionesCajaNullable();
   ensureDefaultMediosPago();
+  ensureEmojiColumns();
+  ensureComprasInsumoTable();
+}
+
+function ensureComprasInsumoTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS compras_insumo (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      insumo_id TEXT NOT NULL REFERENCES insumos(id) ON DELETE CASCADE,
+      proveedor_id TEXT REFERENCES proveedores(id) ON DELETE SET NULL,
+      tipo TEXT NOT NULL CHECK (tipo IN ('agregar', 'fijar')),
+      cantidad REAL NOT NULL CHECK (cantidad >= 0),
+      cantidad_anterior REAL NOT NULL CHECK (cantidad_anterior >= 0),
+      cantidad_nueva REAL NOT NULL CHECK (cantidad_nueva >= 0),
+      costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0),
+      total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_compras_insumo_insumo_id ON compras_insumo (insumo_id);
+    CREATE INDEX IF NOT EXISTS idx_compras_insumo_created_at ON compras_insumo (created_at);
+  `);
+}
+
+function ensureEmojiColumns() {
+  const categoriasInfo = db.prepare('PRAGMA table_info(categorias)').all();
+  if (!categoriasInfo.find((column) => column.name === 'emoji')) {
+    db.exec(`ALTER TABLE categorias ADD COLUMN emoji TEXT NOT NULL DEFAULT '📦'`);
+  }
+
+  const productosInfo = db.prepare('PRAGMA table_info(productos)').all();
+  if (!productosInfo.find((column) => column.name === 'emoji')) {
+    db.exec(`ALTER TABLE productos ADD COLUMN emoji TEXT NOT NULL DEFAULT '📦'`);
+  }
 }
 
 function ensureDefaultMediosPago() {

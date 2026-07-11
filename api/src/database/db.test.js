@@ -156,6 +156,19 @@ function runMigrations() {
       categoria TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE compras_insumo (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      insumo_id TEXT NOT NULL REFERENCES insumos(id) ON DELETE CASCADE,
+      proveedor_id TEXT REFERENCES proveedores(id) ON DELETE SET NULL,
+      tipo TEXT NOT NULL CHECK (tipo IN ('agregar', 'fijar')),
+      cantidad REAL NOT NULL CHECK (cantidad >= 0),
+      cantidad_anterior REAL NOT NULL CHECK (cantidad_anterior >= 0),
+      cantidad_nueva REAL NOT NULL CHECK (cantidad_nueva >= 0),
+      costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0),
+      total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 

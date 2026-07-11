@@ -7,7 +7,7 @@ function getAll() {
 
 function getAllForCatalog() {
   return db.prepare(`
-    SELECT p.id, p.categoria_id, p.nombre, p.descripcion, p.activo,
+    SELECT p.id, p.categoria_id, p.nombre, p.descripcion, p.emoji, p.activo,
            vp.id AS variante_id, vp.precio
     FROM productos p
     INNER JOIN variantes_producto vp ON vp.producto_id = p.id AND vp.activo = 1
@@ -42,6 +42,7 @@ function create(data) {
 
   const nombre = ensureText(data.nombre, 'El nombre del producto');
   const descripcion = normalizeText(data.descripcion);
+  const emoji = normalizeText(data.emoji) || '📦';
 
   // precio obligatorio al crear según el nuevo diseño (permitir 0)
   const precio = typeof data.precio === 'undefined' ? null : data.precio;
@@ -60,11 +61,12 @@ function create(data) {
 
   // Usar transacción para insertar producto, variante por defecto y recetas
   const createTx = db.transaction(() => {
-    db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, activo) VALUES (?, ?, ?, ?, 1)').run(
+    db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, emoji, activo) VALUES (?, ?, ?, ?, ?, 1)').run(
       id,
       categoriaId,
       nombre,
-      descripcion
+      descripcion,
+      emoji
     );
 
     // Crear una variante por defecto del producto que contiene el precio
@@ -118,13 +120,74 @@ function update(id, data) {
 
   const nombre = data.nombre !== undefined ? ensureText(data.nombre, 'El nombre del producto') : current.nombre;
   const descripcion = data.descripcion !== undefined ? normalizeText(data.descripcion) : current.descripcion;
+  const emoji = data.emoji !== undefined
+    ? (normalizeText(data.emoji) || '📦')
+    : (current.emoji || '📦');
+  const activo = data.activo !== undefined
+    ? (data.activo === true || data.activo === 1 || data.activo === '1' ? 1 : 0)
+    : current.activo;
 
-  db.prepare('UPDATE productos SET categoria_id = ?, nombre = ?, descripcion = ? WHERE id = ?').run(
-    categoriaId,
-    nombre,
-    descripcion,
-    id
-  );
+  const updateTx = db.transaction(() => {
+    db.prepare('UPDATE productos SET categoria_id = ?, nombre = ?, descripcion = ?, emoji = ?, activo = ? WHERE id = ?').run(
+      categoriaId,
+      nombre,
+      descripcion,
+      emoji,
+      activo,
+      id
+    );
+
+    const variante = current.variantes?.[0]
+      || db.prepare('SELECT * FROM variantes_producto WHERE producto_id = ? AND activo = 1 ORDER BY nombre LIMIT 1').get(id);
+
+    if (!variante) {
+      throw new Error('El producto no tiene una variante activa para actualizar');
+    }
+
+    if (data.precio !== undefined) {
+      const precioValid = ensureNonNegative(data.precio, 'El precio');
+      db.prepare('UPDATE variantes_producto SET precio = ?, nombre = ? WHERE id = ?').run(
+        precioValid,
+        nombre,
+        variante.id
+      );
+    } else if (data.nombre !== undefined) {
+      db.prepare('UPDATE variantes_producto SET nombre = ? WHERE id = ?').run(nombre, variante.id);
+    }
+
+    if (Array.isArray(data.insumos)) {
+      if (data.insumos.length === 0) {
+        throw new Error('Los insumos (ingredientes) deben ser un arreglo no vacío');
+      }
+
+      db.prepare('DELETE FROM recetas WHERE variante_id = ?').run(variante.id);
+
+      for (const item of data.insumos) {
+        const insumoId = item.insumo_id || item.id || null;
+        if (!insumoId) {
+          throw new Error('Cada insumo debe incluir insumo_id');
+        }
+
+        ensureExists(db, 'insumos', insumoId, 'Insumo');
+
+        const cantidad = item.cantidad !== undefined ? item.cantidad : item.cantidad_requerida;
+        if (cantidad === undefined || cantidad === null) {
+          throw new Error('Cada insumo debe incluir la cantidad requerida');
+        }
+
+        const cantidadValid = ensurePositive(cantidad, 'La cantidad requerida');
+        const recetaId = newId();
+        db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(
+          recetaId,
+          variante.id,
+          insumoId,
+          cantidadValid
+        );
+      }
+    }
+  });
+
+  updateTx();
 
   return getById(id);
 }
