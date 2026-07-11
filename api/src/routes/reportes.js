@@ -77,4 +77,22 @@ router.get('/dashboard', (req, res) => {
   }
 });
 
+router.get('/dashboard/excel', async (req, res) => {
+  try {
+    const { buffer, nombreArchivo } = await reportes.generarReporteExcel({
+      periodo: req.query.periodo,
+      fecha: req.query.fecha,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+      limite: req.query.limite,
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo}"`);
+    return res.status(200).send(Buffer.from(buffer));
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
 module.exports = router;

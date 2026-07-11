@@ -916,6 +916,32 @@ function buildOperation(method, openApiPath, tag) {
     };
   }
 
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/dashboard/excel')) {
+    operation.summary = 'Descargar el reporte del dashboard en Excel';
+    operation.description = 'Genera y descarga un archivo .xlsx con el mismo contenido que /reportes/dashboard: resumen de ventas y gastos, top de productos e insumos con stock bajo, para un periodo (semana/mes) o rango de fechas. Solo disponible para admin.';
+    operation.parameters = [
+      { name: 'periodo', in: 'query', required: false, description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.', schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' } },
+      { name: 'fecha', in: 'query', required: false, description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'desde', in: 'query', required: false, description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.', schema: { type: 'string', example: '2026-07-01' } },
+      { name: 'hasta', in: 'query', required: false, description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'limite', in: 'query', required: false, description: 'Cantidad de productos a incluir en el top (top N). Por defecto 5.', schema: { type: 'integer', minimum: 1, maximum: 50, default: 5 } }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Archivo Excel (.xlsx) con el reporte consolidado',
+        content: {
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+            schema: { type: 'string', format: 'binary' }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha, rango o límite)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
   if (tag === 'Auth' && method === 'get' && openApiPath.endsWith('/usuarios')) {
     operation.summary = 'Listar usuarios activos para login';
     operation.description = 'Devuelve los usuarios activos disponibles para iniciar sesion.';

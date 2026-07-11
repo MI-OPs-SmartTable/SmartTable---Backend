@@ -1,3 +1,4 @@
+const ExcelJS = require('exceljs');
 const db = require('../database/db');
 const insumos = require('./insumos');
 
@@ -214,4 +215,77 @@ function getResumenDashboard(filtros = {}) {
   };
 }
 
-module.exports = { getResumenDashboard, getResumenGastos, getResumenVentas, getTopProductosVendidos };
+function formatMoneda(valor) {
+  return Number(valor || 0);
+}
+
+// Construye el libro de Excel del reporte consolidado (mismos datos que getResumenDashboard),
+// con una hoja de resumen, una de top de productos y una de alertas de stock bajo.
+async function generarReporteExcel(filtros = {}) {
+  const resumen = getResumenDashboard(filtros);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'SmartTable';
+  workbook.created = new Date();
+
+  const hojaResumen = workbook.addWorksheet('Resumen');
+  hojaResumen.columns = [
+    { header: 'Indicador', key: 'indicador', width: 30 },
+    { header: 'Valor', key: 'valor', width: 20 },
+  ];
+  hojaResumen.addRows([
+    { indicador: 'Periodo', valor: resumen.periodo },
+    { indicador: 'Desde', valor: resumen.desde },
+    { indicador: 'Hasta', valor: resumen.hasta },
+    { indicador: 'Cantidad de ventas', valor: resumen.ventas.cantidad },
+    { indicador: 'Total ventas', valor: formatMoneda(resumen.ventas.total) },
+    { indicador: 'Total efectivo', valor: formatMoneda(resumen.ventas.total_efectivo) },
+    { indicador: 'Total transferencia', valor: formatMoneda(resumen.ventas.total_transferencia) },
+    { indicador: 'Cantidad de gastos', valor: resumen.gastos.cantidad },
+    { indicador: 'Total gastos', valor: formatMoneda(resumen.gastos.total) },
+    { indicador: 'Ingresos netos', valor: formatMoneda(resumen.ingresos_netos) },
+    { indicador: 'Insumos con stock bajo', valor: resumen.stock_bajo.cantidad },
+  ]);
+  hojaResumen.getRow(1).font = { bold: true };
+
+  const hojaTopProductos = workbook.addWorksheet('Top productos');
+  hojaTopProductos.columns = [
+    { header: 'Producto', key: 'producto', width: 30 },
+    { header: 'Cantidad vendida', key: 'cantidad_vendida', width: 20 },
+    { header: 'Total vendido', key: 'total_vendido', width: 20 },
+  ];
+  hojaTopProductos.addRows(resumen.top_productos.map((p) => ({
+    producto: p.producto,
+    cantidad_vendida: p.cantidad_vendida,
+    total_vendido: formatMoneda(p.total_vendido),
+  })));
+  hojaTopProductos.getRow(1).font = { bold: true };
+
+  const hojaStockBajo = workbook.addWorksheet('Stock bajo');
+  hojaStockBajo.columns = [
+    { header: 'Insumo', key: 'nombre', width: 30 },
+    { header: 'Cantidad actual', key: 'cantidad_actual', width: 18 },
+    { header: 'Stock mínimo', key: 'stock_minimo', width: 18 },
+    { header: 'Unidad', key: 'unidad', width: 12 },
+  ];
+  hojaStockBajo.addRows(resumen.stock_bajo.insumos.map((i) => ({
+    nombre: i.nombre,
+    cantidad_actual: i.cantidad_actual,
+    stock_minimo: i.stock_minimo,
+    unidad: i.unidad,
+  })));
+  hojaStockBajo.getRow(1).font = { bold: true };
+
+  return {
+    buffer: await workbook.xlsx.writeBuffer(),
+    nombreArchivo: `reporte-${resumen.periodo}-${resumen.desde.slice(0, 10)}_${resumen.hasta.slice(0, 10)}.xlsx`,
+  };
+}
+
+module.exports = {
+  generarReporteExcel,
+  getResumenDashboard,
+  getResumenGastos,
+  getResumenVentas,
+  getTopProductosVendidos,
+};

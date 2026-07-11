@@ -3,8 +3,15 @@ jest.mock('../api/src/database/db', () => require('../api/src/database/db.test')
 
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const ExcelJS = require('exceljs');
 const app = require('../api/src/app');
 const db = require('../api/src/database/db.test');
+
+function bufferParser(res, callback) {
+  const chunks = [];
+  res.on('data', (chunk) => chunks.push(chunk));
+  res.on('end', () => callback(null, Buffer.concat(chunks)));
+}
 
 async function getAuthHeader(userId) {
   const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '8h' });
@@ -244,6 +251,51 @@ describe('Reportes', () => {
       const chocolateBajo = response.body.stock_bajo.insumos.find((i) => i.id === db.seedData.chocolateId);
       expect(chocolateBajo).toBeDefined();
       expect(response.body.stock_bajo.cantidad).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('GET /api/reportes/dashboard/excel', () => {
+    it('debe rechazar el acceso a roles distintos de admin', async () => {
+      const response = await request(app)
+        .get('/api/reportes/dashboard/excel')
+        .set('Authorization', cajeroAuthHeader);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('debe descargar un archivo .xlsx con el resumen, el top de productos y el stock bajo', async () => {
+      db.prepare('UPDATE insumos SET cantidad_actual = 100 WHERE id = ?').run(db.seedData.chocolateId);
+
+      const response = await request(app)
+        .get('/api/reportes/dashboard/excel?periodo=mes')
+        .set('Authorization', adminAuthHeader)
+        .buffer(true)
+        .parse(bufferParser);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(response.headers['content-disposition']).toMatch(/attachment; filename="reporte-mes-.*\.xlsx"/);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(response.body);
+
+      const nombresHojas = workbook.worksheets.map((hoja) => hoja.name);
+      expect(nombresHojas).toEqual(['Resumen', 'Top productos', 'Stock bajo']);
+
+      const hojaResumen = workbook.getWorksheet('Resumen');
+      expect(hojaResumen.getRow(1).getCell(1).value).toBe('Indicador');
+      const indicadores = [];
+      hojaResumen.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) indicadores.push(row.getCell(1).value);
+      });
+      expect(indicadores).toEqual(expect.arrayContaining(['Total ventas', 'Total gastos', 'Ingresos netos', 'Insumos con stock bajo']));
+
+      const hojaStockBajo = workbook.getWorksheet('Stock bajo');
+      const nombresInsumos = [];
+      hojaStockBajo.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) nombresInsumos.push(row.getCell(1).value);
+      });
+      expect(nombresInsumos).toContain('Chocolate');
     });
   });
 });
