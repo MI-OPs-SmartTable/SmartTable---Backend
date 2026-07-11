@@ -319,6 +319,22 @@ function runMigrations() {
   ensureDefaultMediosPago();
   ensureEmojiColumns();
   ensureComprasInsumoTable();
+  ensureAuthSesionesTable();
+}
+
+function ensureAuthSesionesTable() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_sesiones (
+      id TEXT PRIMARY KEY,
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      device_label TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_auth_sesiones_usuario_id ON auth_sesiones (usuario_id);
+    CREATE INDEX IF NOT EXISTS idx_auth_sesiones_activas ON auth_sesiones (usuario_id, revoked_at, expires_at);
+  `);
 }
 
 function ensureComprasInsumoTable() {

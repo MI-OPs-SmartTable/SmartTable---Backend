@@ -7,8 +7,7 @@ const app = require('../api/src/app');
 const db = require('../api/src/database/db.test');
 
 async function getAdminAuthHeader() {
-  const token = jwt.sign({ id: db.seedData.anaId }, process.env.JWT_SECRET, { expiresIn: '8h' });
-  return `Bearer ${token}`;
+  return db.issueAuthHeader(db.seedData.anaId);
 }
 
 describe('Productos', () => {

@@ -43,12 +43,27 @@ function parseCorsOrigins(value) {
     .filter(Boolean);
 }
 
+function isLanOrLocalOrigin(origin) {
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return true;
+    }
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || 'http://localhost:3030,http://localhost:5173');
 
 app.use(logger);
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || corsOrigins.includes(origin)) {
+    if (!origin || corsOrigins.includes(origin) || isLanOrLocalOrigin(origin)) {
       return callback(null, true);
     }
 

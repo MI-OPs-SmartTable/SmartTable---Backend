@@ -169,6 +169,15 @@ function runMigrations() {
       total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE auth_sesiones (
+      id TEXT PRIMARY KEY,
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      device_label TEXT
+    );
   `);
 }
 
@@ -350,5 +359,27 @@ afterAll(() => {
 });
 
 db.seedData = seedData;
+
+db.issueAuthHeader = function issueAuthHeader(userId) {
+  const jwt = require('jsonwebtoken');
+  const id = randomUUID().replace(/-/g, '').toLowerCase();
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (date) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const now = new Date();
+  const expires = new Date(Date.now() + 8 * 3600 * 1000);
+
+  db.prepare(`
+    INSERT INTO auth_sesiones (id, usuario_id, created_at, expires_at, revoked_at, device_label)
+    VALUES (?, ?, ?, ?, NULL, ?)
+  `).run(id, userId, fmt(now), fmt(expires), 'test');
+
+  const token = jwt.sign(
+    { id: userId, jti: id },
+    process.env.JWT_SECRET || 'test-secret',
+    { expiresIn: '8h' }
+  );
+  return `Bearer ${token}`;
+};
 
 module.exports = db;
