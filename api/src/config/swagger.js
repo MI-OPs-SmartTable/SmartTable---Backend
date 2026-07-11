@@ -20,7 +20,8 @@ const ROUTE_DEFINITIONS = [
   { basePath: '/api/items-pedido', routeFile: 'items_pedido.js', tag: 'ItemsPedido' },
   { basePath: '/api/medios-pago-transferencia', routeFile: 'medios_pago_transferencia.js', tag: 'MediosPagoTransferencia' },
   { basePath: '/api/ventas', routeFile: 'ventas.js', tag: 'Ventas' },
-  { basePath: '/api/gastos-caja', routeFile: 'gastos_caja.js', tag: 'GastosCaja' }
+  { basePath: '/api/gastos-caja', routeFile: 'gastos_caja.js', tag: 'GastosCaja' },
+  { basePath: '/api/reportes', routeFile: 'reportes.js', tag: 'Reportes' }
 ];
 
 function joinPaths(basePath, routePath) {
@@ -690,6 +691,81 @@ function buildOperation(method, openApiPath, tag) {
     };
   }
 
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/top-productos')) {
+    operation.summary = 'Productos más vendidos';
+    operation.description = 'Devuelve el ranking de productos más vendidos (por cantidad) calculado sobre ventas ya pagadas. Permite filtrar por periodo (semana/mes) relativo a una fecha de referencia, o por un rango de fechas explícito (desde/hasta). Solo disponible para admin.';
+    operation.parameters = [
+      {
+        name: 'periodo',
+        in: 'query',
+        required: false,
+        description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.',
+        schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' }
+      },
+      {
+        name: 'fecha',
+        in: 'query',
+        required: false,
+        description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.',
+        schema: { type: 'string', example: '2026-07-10' }
+      },
+      {
+        name: 'desde',
+        in: 'query',
+        required: false,
+        description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.',
+        schema: { type: 'string', example: '2026-07-01' }
+      },
+      {
+        name: 'hasta',
+        in: 'query',
+        required: false,
+        description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.',
+        schema: { type: 'string', example: '2026-07-10' }
+      },
+      {
+        name: 'limite',
+        in: 'query',
+        required: false,
+        description: 'Cantidad de productos a devolver (top N). Por defecto 5.',
+        schema: { type: 'integer', minimum: 1, maximum: 50, default: 5 }
+      }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Ranking de productos más vendidos',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                periodo: { type: 'string', example: 'mes' },
+                desde: { type: 'string', example: '2026-07-01 00:00:00' },
+                hasta: { type: 'string', example: '2026-07-31 23:59:59' },
+                productos: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      producto_id: { type: 'string' },
+                      producto: { type: 'string', example: 'Café' },
+                      cantidad_vendida: { type: 'number', example: 42 },
+                      total_vendido: { type: 'number', example: 176400 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha o límite)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
   if (tag === 'Auth' && method === 'get' && openApiPath.endsWith('/usuarios')) {
     operation.summary = 'Listar usuarios activos para login';
     operation.description = 'Devuelve los usuarios activos disponibles para iniciar sesion.';
@@ -869,7 +945,8 @@ const swaggerDefinition = {
     { name: 'Pedidos' },
     { name: 'ItemsPedido' },
     { name: 'Ventas' },
-    { name: 'GastosCaja' }
+    { name: 'GastosCaja' },
+    { name: 'Reportes' }
   ],
   components: {
     securitySchemes: {

@@ -93,6 +93,7 @@ app.use('/api/items-pedido', require('./routes/items_pedido'));
 app.use('/api/medios-pago-transferencia', require('./routes/medios_pago_transferencia'));
 app.use('/api/ventas', require('./routes/ventas'));
 app.use('/api/gastos-caja', require('./routes/gastos_caja'));
+app.use('/api/reportes', require('./routes/reportes'));
 app.use('/api/backup', require('./routes/backup'));
 
 const frontendDist = process.env.FRONTEND_DIST;
