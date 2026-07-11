@@ -15,6 +15,7 @@ const {
 } = require('../services/backup/googleDrive');
 const {
   restoreFromUploadBuffer,
+  previewUploadBuffer,
   scheduleProcessRestart,
 } = require('../services/backup/restoreBackup');
 
@@ -203,6 +204,31 @@ router.post('/run', ...adminOnly, async (req, res) => {
     return handleError(res, err);
   }
 });
+
+router.post(
+  '/restore/preview',
+  ...adminOnly,
+  express.raw({
+    type: () => true,
+    limit: '200mb',
+  }),
+  async (req, res) => {
+    try {
+      const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || []);
+      if (!buffer.length) {
+        return res.status(400).json({
+          error: 'Debes subir el archivo de respaldo (.db.gz, .db o .sqlite)',
+        });
+      }
+
+      const fileName = decodeFilenameHeader(req.headers['x-backup-filename']);
+      const preview = await previewUploadBuffer(buffer, fileName);
+      return res.status(200).json(preview);
+    } catch (err) {
+      return handleError(res, err, 400);
+    }
+  }
+);
 
 router.post(
   '/restore',

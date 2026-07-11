@@ -10,14 +10,16 @@ function isMissing(value) {
 }
 
 function handleError(res, err) {
-  if (String(err.message || '').toLowerCase().includes('no encontrado')) {
+  const message = String(err.message || '');
+  const lower = message.toLowerCase();
+  if (lower.includes('no encontrado')) {
     return res.status(404).json({ error: 'No encontrado' });
   }
-  if (String(err.message || '').toLowerCase().includes('sesión activa')) {
-    return res.status(409).json({ error: err.message });
+  if (lower.includes('sesión activa') || lower.includes('caja abierta')) {
+    return res.status(409).json({ error: message });
   }
 
-  return res.status(500).json({ error: err.message });
+  return res.status(500).json({ error: message });
 }
 
 function cajaConColaboradores(caja) {
@@ -90,12 +92,25 @@ router.post('/abrir', (req, res) => {
     if (isMissing(req.body.usuario_id)) return res.status(400).json({ error: 'Campo usuario_id requerido' });
     if (isMissing(req.body.monto_apertura)) return res.status(400).json({ error: 'Campo monto_apertura requerido' });
 
-    const cajaAbierta = db.prepare(
-      'SELECT id FROM cajas WHERE usuario_id = ? AND estado = ? LIMIT 1'
-    ).get(req.body.usuario_id, 'abierta');
+    // Solo puede haber una caja abierta en el POS a la vez.
+    const cajaAbierta = db.prepare(`
+      SELECT c.id, c.usuario_id, u.nombre_completo
+      FROM cajas c
+      LEFT JOIN usuarios u ON u.id = c.usuario_id
+      WHERE c.estado = ?
+      ORDER BY c.apertura_at DESC
+      LIMIT 1
+    `).get('abierta');
 
     if (cajaAbierta) {
-      return res.status(400).json({ error: 'El usuario ya tiene una caja abierta' });
+      if (cajaAbierta.usuario_id === req.body.usuario_id) {
+        return res.status(400).json({ error: 'El usuario ya tiene una caja abierta' });
+      }
+
+      const titular = cajaAbierta.nombre_completo || 'otro usuario';
+      return res.status(409).json({
+        error: `Hay una caja abierta por ${titular}. Debe iniciar sesión y cerrar la caja antes de abrir una nueva.`,
+      });
     }
 
     const abrirCajaTransaction = db.transaction((payload) => {

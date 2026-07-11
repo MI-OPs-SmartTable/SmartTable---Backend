@@ -124,6 +124,82 @@ function checkpointAndCloseLiveDb(dbPath) {
   }
 }
 
+async function materializeUploadToDb(buffer, originalName, destDbPath) {
+  const backupDir = getBackupDir();
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeName = String(originalName || 'backup').replace(/[^\w.\-]+/g, '_');
+  const uploadPath = path.join(backupDir, `restore-upload-${stamp}-${safeName}`);
+
+  await writeBufferToFile(buffer, uploadPath);
+  try {
+    const nameLower = safeName.toLowerCase();
+    const treatAsGzip = nameLower.endsWith('.gz') || isGzipBuffer(buffer);
+    if (treatAsGzip) {
+      await decompressGzipToFile(uploadPath, destDbPath);
+    } else {
+      fs.copyFileSync(uploadPath, destDbPath);
+    }
+    assertValidSqlite(destDbPath);
+  } finally {
+    safeUnlink(uploadPath);
+  }
+}
+
+function readDbStats(dbPath) {
+  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  try {
+    const count = (sql) => {
+      try {
+        return Number(db.prepare(sql).get()?.total || 0);
+      } catch {
+        return 0;
+      }
+    };
+    const usuarios = count('SELECT COUNT(*) AS total FROM usuarios');
+    const nombres = db
+      .prepare('SELECT nombre_completo AS nombre FROM usuarios ORDER BY nombre_completo LIMIT 8')
+      .all()
+      .map((r) => r.nombre);
+    return {
+      usuarios,
+      mesas: count('SELECT COUNT(*) AS total FROM mesas'),
+      productos: count('SELECT COUNT(*) AS total FROM productos'),
+      insumos: count('SELECT COUNT(*) AS total FROM insumos'),
+      categorias: count('SELECT COUNT(*) AS total FROM categorias'),
+      nombresUsuarios: nombres,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+/** Solo valida y resume el contenido del archivo, sin tocar la BD activa. */
+async function previewUploadBuffer(buffer, originalName = 'backup.db.gz') {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 16) {
+    throw new Error('Archivo de respaldo vacío o inválido');
+  }
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const decodedDbPath = path.join(getBackupDir(), `restore-preview-${stamp}.db`);
+
+  try {
+    await materializeUploadToDb(buffer, originalName, decodedDbPath);
+    const stats = readDbStats(decodedDbPath);
+    return {
+      ok: true,
+      fileName: originalName,
+      sizeBytes: buffer.length,
+      ...stats,
+      aviso:
+        stats.usuarios <= 1 && stats.productos === 0
+          ? 'Este archivo parece un inicio vacío (solo seed). Si esperabas todos tus datos, el respaldo de Drive probablemente se sobrescribió después de borrar la BD.'
+          : null,
+    };
+  } finally {
+    safeUnlink(decodedDbPath);
+  }
+}
+
 /**
  * Restaura la BD activa desde un buffer subido (.db.gz, .db o .sqlite).
  * Tras éxito, el proceso debe reiniciarse (exit 42 en Electron).
@@ -135,28 +211,14 @@ async function restoreFromUploadBuffer(buffer, originalName = 'backup.db.gz') {
 
   const backupDir = getBackupDir();
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const safeName = String(originalName || 'backup').replace(/[^\w.\-]+/g, '_');
-  const uploadPath = path.join(backupDir, `restore-upload-${stamp}-${safeName}`);
-  const decodedDbPath = path.join(backupDir, `restore-decoded-${stamp}.db`);
   const stagingPath = path.join(backupDir, `restore-staging-${stamp}.db`);
   const dbPath = getDbPath();
   const safetyPath = path.join(backupDir, `pre-restore-${stamp}.db`);
   const oldDbPath = `${dbPath}.pre-restore-old`;
 
-  await writeBufferToFile(buffer, uploadPath);
-
   try {
-    const nameLower = safeName.toLowerCase();
-    const treatAsGzip = nameLower.endsWith('.gz') || isGzipBuffer(buffer);
-
-    if (treatAsGzip) {
-      await decompressGzipToFile(uploadPath, decodedDbPath);
-    } else {
-      fs.copyFileSync(uploadPath, decodedDbPath);
-    }
-
-    assertValidSqlite(decodedDbPath);
-    fs.copyFileSync(decodedDbPath, stagingPath);
+    await materializeUploadToDb(buffer, originalName, stagingPath);
+    const stats = readDbStats(stagingPath);
 
     const { stopBackupScheduler } = require('./scheduler');
     stopBackupScheduler();
@@ -193,38 +255,34 @@ async function restoreFromUploadBuffer(buffer, originalName = 'backup.db.gz') {
     fs.copyFileSync(stagingPath, dbPath);
     removeSidecars(dbPath);
 
-    // Verificación final: la BD activa debe abrir y tener usuarios del respaldo
-    const verify = new Database(dbPath, { readonly: true, fileMustExist: true });
-    let userCount = 0;
-    try {
-      userCount = Number(verify.prepare('SELECT COUNT(*) AS total FROM usuarios').get()?.total || 0);
-    } finally {
-      verify.close();
-    }
+    // Verificación final
+    const verifyStats = readDbStats(dbPath);
 
     safeUnlink(oldDbPath);
     markSkipBackupOnStart();
 
-    console.log(`[restore] BD restaurada en ${dbPath} (${userCount} usuarios). Se omitirá el backup al reiniciar.`);
+    console.log(
+      `[restore] BD restaurada en ${dbPath} (${verifyStats.usuarios} usuarios, ${verifyStats.productos} productos). Se omitirá el backup al reiniciar.`
+    );
 
     return {
       success: true,
       requiresRestart: true,
       restartExitCode: RESTART_EXIT_CODE,
       dbPath,
-      userCount,
+      userCount: verifyStats.usuarios,
+      stats: verifyStats,
       safetyBackup: fs.existsSync(safetyPath) ? path.basename(safetyPath) : null,
       message:
-        'Base de datos restaurada. La aplicación se reiniciará para cargar todos los datos. Vuelve a iniciar sesión.',
+        `Base restaurada: ${verifyStats.usuarios} usuario(s), ${verifyStats.productos} producto(s), ${verifyStats.mesas} mesa(s). ` +
+        'La app se reiniciará; vuelve a iniciar sesión.',
+      aviso:
+        verifyStats.usuarios <= 1 && verifyStats.productos === 0
+          ? 'Este archivo parece un inicio vacío (solo seed). Si esperabas todos tus datos, el respaldo de Drive probablemente se sobrescribió después de borrar la BD.'
+          : null,
     };
   } finally {
-    for (const p of [uploadPath, decodedDbPath, stagingPath]) {
-      try {
-        safeUnlink(p);
-      } catch {
-        // ignore cleanup errors
-      }
-    }
+    safeUnlink(stagingPath);
   }
 }
 
@@ -237,6 +295,7 @@ function scheduleProcessRestart(exitCode = RESTART_EXIT_CODE) {
 
 module.exports = {
   restoreFromUploadBuffer,
+  previewUploadBuffer,
   scheduleProcessRestart,
   consumeSkipBackupOnStart,
   RESTART_EXIT_CODE,

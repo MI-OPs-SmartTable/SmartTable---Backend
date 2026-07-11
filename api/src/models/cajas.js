@@ -51,9 +51,18 @@ function getMontoCierreAutomatico(cajaId) {
 
 function abrir(data) {
   const usuarioId = ensureText(data.usuario_id, 'El usuario_id de la caja');
-  const abierta = getCajaAbierta(usuarioId);
+  const abierta = getAbiertas()[0];
   if (abierta) {
-    throw new Error('Ya existe una caja abierta para el usuario: ' + usuarioId);
+    if (abierta.usuario_id === usuarioId) {
+      throw new Error('Ya existe una caja abierta para el usuario: ' + usuarioId);
+    }
+    const titular = db.prepare(
+      'SELECT nombre_completo FROM usuarios WHERE id = ?'
+    ).get(abierta.usuario_id);
+    const nombre = titular?.nombre_completo || 'otro usuario';
+    throw new Error(
+      `Hay una caja abierta por ${nombre}. Debe iniciar sesión y cerrar la caja antes de abrir una nueva.`
+    );
   }
 
   return create(data);
