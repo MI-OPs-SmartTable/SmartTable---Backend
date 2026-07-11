@@ -58,12 +58,26 @@ function isLanOrLocalOrigin(origin) {
   }
 }
 
+function isTryCloudflareOrigin(origin) {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'trycloudflare.com' || hostname.endsWith('.trycloudflare.com');
+  } catch {
+    return false;
+  }
+}
+
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || 'http://localhost:3030,http://localhost:5173');
 
 app.use(logger);
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || corsOrigins.includes(origin) || isLanOrLocalOrigin(origin)) {
+    if (
+      !origin ||
+      corsOrigins.includes(origin) ||
+      isLanOrLocalOrigin(origin) ||
+      isTryCloudflareOrigin(origin)
+    ) {
       return callback(null, true);
     }
 
@@ -110,6 +124,7 @@ app.use('/api/ventas', require('./routes/ventas'));
 app.use('/api/gastos-caja', require('./routes/gastos_caja'));
 app.use('/api/reportes', require('./routes/reportes'));
 app.use('/api/backup', require('./routes/backup'));
+app.use('/api/events', require('./routes/events'));
 
 const frontendDist = process.env.FRONTEND_DIST;
 if (frontendDist) {

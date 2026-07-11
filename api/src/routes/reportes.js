@@ -77,6 +77,34 @@ router.get('/dashboard', (req, res) => {
   }
 });
 
+router.get('/ventas-diarias', (req, res) => {
+  try {
+    const resultado = reportes.getVentasDiarias({
+      periodo: req.query.periodo,
+      fecha: req.query.fecha,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    return res.status(200).json(resultado);
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.get('/por-categoria', (req, res) => {
+  try {
+    const resultado = reportes.getVentasPorCategoria({
+      periodo: req.query.periodo,
+      fecha: req.query.fecha,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    return res.status(200).json(resultado);
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
 router.get('/dashboard/excel', async (req, res) => {
   try {
     const { buffer, nombreArchivo } = await reportes.generarReporteExcel({

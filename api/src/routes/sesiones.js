@@ -49,8 +49,10 @@ router.post('/:id/cerrar', (req, res) => {
     const sesion = sesiones.getById(req.params.id);
     const caja = cajas.getById(sesion.caja_id);
 
-    if (caja.usuario_id !== req.usuario.id && req.usuario.rol !== 'admin') {
-      return res.status(403).json({ error: 'Solo el titular de la caja o un administrador puede cerrar esta sesión' });
+    if (caja.usuario_id !== req.usuario.id) {
+      return res.status(403).json({
+        error: 'Solo quien abrió la caja puede quitar colaboradores',
+      });
     }
 
     return res.status(200).json(sesiones.cerrarSesion(req.params.id, req.body || {}));

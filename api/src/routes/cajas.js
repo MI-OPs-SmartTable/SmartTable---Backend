@@ -29,6 +29,30 @@ function cajaConColaboradores(caja) {
   };
 }
 
+function getRolUsuario(usuarioId) {
+  return db.prepare(`
+    SELECT r.nombre AS rol
+    FROM usuarios u
+    INNER JOIN roles r ON r.id = u.rol_id
+    WHERE u.id = ?
+  `).get(usuarioId)?.rol || null;
+}
+
+/** Si abre un cajero, los admins activos entran como colaboradores (ven/gestionan, no cierran). */
+function agregarAdminsComoColaboradores(cajaId) {
+  const admins = db.prepare(`
+    SELECT u.id
+    FROM usuarios u
+    INNER JOIN roles r ON r.id = u.rol_id
+    WHERE r.nombre = 'admin' AND u.activo = 1
+  `).all();
+
+  for (const admin of admins) {
+    if (sesiones.getActivaByUsuario(admin.id)) continue;
+    sesiones.agregarColaborador(cajaId, admin.id, {});
+  }
+}
+
 router.use(auth, requireRol('admin', 'cajero'));
 
 router.get('/', (req, res) => {
@@ -120,10 +144,15 @@ router.post('/abrir', (req, res) => {
         caja_id: caja.id,
         inicio_at: payload.inicio_at,
       });
+
+      if (getRolUsuario(payload.usuario_id) === 'cajero') {
+        agregarAdminsComoColaboradores(caja.id);
+      }
+
       return caja;
     });
 
-    return res.status(201).json(abrirCajaTransaction(req.body));
+    return res.status(201).json(cajaConColaboradores(abrirCajaTransaction(req.body)));
   } catch (err) {
     return handleError(res, err);
   }
@@ -136,8 +165,10 @@ router.post('/:id/colaboradores', (req, res) => {
     }
 
     const caja = cajas.getById(req.params.id);
-    if (caja.usuario_id !== req.usuario.id && req.usuario.rol !== 'admin') {
-      return res.status(403).json({ error: 'Solo el titular de la caja o un administrador puede agregar colaboradores' });
+    if (caja.usuario_id !== req.usuario.id) {
+      return res.status(403).json({
+        error: 'Solo quien abrió la caja puede agregar colaboradores',
+      });
     }
 
     return res.status(201).json(sesiones.agregarColaborador(caja.id, req.body.usuario_id, req.body || {}));
@@ -150,8 +181,10 @@ router.post('/:id/cerrar', (req, res) => {
   try {
     const caja = cajas.getById(req.params.id);
 
-    if (caja.usuario_id !== req.usuario.id && req.usuario.rol !== 'admin') {
-      return res.status(403).json({ error: 'Solo el usuario que abrió la caja o un administrador puede cerrarla' });
+    if (caja.usuario_id !== req.usuario.id) {
+      return res.status(403).json({
+        error: 'Solo quien abrió la caja puede cerrarla',
+      });
     }
 
     const cajaCerrada = cajas.cerrar(req.params.id, req.body || {});

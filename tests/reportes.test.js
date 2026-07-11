@@ -246,6 +246,11 @@ describe('Reportes', () => {
       }));
       expect(response.body.ingresos_netos).toBe(response.body.ventas.total - response.body.gastos.total);
       expect(Array.isArray(response.body.top_productos)).toBe(true);
+      expect(Array.isArray(response.body.ventas_diarias)).toBe(true);
+      expect(Array.isArray(response.body.por_categoria)).toBe(true);
+      expect(response.body.ventas).toEqual(expect.objectContaining({
+        ticket_promedio: expect.any(Number),
+      }));
 
       const chocolateBajo = response.body.stock_bajo.insumos.find((i) => i.id === db.seedData.chocolateId);
       expect(chocolateBajo).toBeDefined();
@@ -279,7 +284,13 @@ describe('Reportes', () => {
       await workbook.xlsx.load(response.body);
 
       const nombresHojas = workbook.worksheets.map((hoja) => hoja.name);
-      expect(nombresHojas).toEqual(['Resumen', 'Top productos', 'Stock bajo']);
+      expect(nombresHojas).toEqual([
+        'Resumen',
+        'Ventas diarias',
+        'Top productos',
+        'Por categoría',
+        'Stock bajo',
+      ]);
 
       const hojaResumen = workbook.getWorksheet('Resumen');
       expect(hojaResumen.getRow(1).getCell(1).value).toBe('Indicador');

@@ -185,11 +185,83 @@ function getResumenGastos(filtros = {}) {
   };
 }
 
+// Ventas agrupadas por día (efectivo / transferencia) en un rango de fechas.
+function getVentasDiarias(filtros = {}) {
+  const { desde, hasta, periodo } = resolveRango(filtros);
+  const desdeSql = toSqlDateTime(desde);
+  const hastaSql = toSqlDateTime(hasta);
+
+  const filas = db.prepare(`
+    SELECT
+      date(pagado_at) AS fecha,
+      COUNT(*) AS cantidad_ventas,
+      COALESCE(SUM(monto_efectivo), 0) AS total_efectivo,
+      COALESCE(SUM(monto_transferencia), 0) AS total_transferencia,
+      COALESCE(SUM(total), 0) AS total
+    FROM ventas
+    WHERE pagado_at >= ? AND pagado_at < ?
+    GROUP BY date(pagado_at)
+    ORDER BY fecha ASC
+  `).all(desdeSql, hastaSql);
+
+  return {
+    periodo,
+    desde: desdeSql,
+    hasta: toSqlDateTime(new Date(hasta.getTime() - 1000)),
+    dias: filas.map((row) => ({
+      fecha: row.fecha,
+      cantidad_ventas: Number(row.cantidad_ventas),
+      total_efectivo: Number(row.total_efectivo),
+      total_transferencia: Number(row.total_transferencia),
+      total: Number(row.total),
+    })),
+  };
+}
+
+// Ventas agrupadas por categoría de producto en un rango de fechas.
+function getVentasPorCategoria(filtros = {}) {
+  const { desde, hasta, periodo } = resolveRango(filtros);
+  const desdeSql = toSqlDateTime(desde);
+  const hastaSql = toSqlDateTime(hasta);
+
+  const filas = db.prepare(`
+    SELECT
+      c.id AS categoria_id,
+      c.nombre AS categoria,
+      COALESCE(c.emoji, '📦') AS emoji,
+      SUM(ip.cantidad) AS cantidad_vendida,
+      SUM(ip.cantidad * ip.precio_unitario) AS total_vendido
+    FROM ventas v
+    INNER JOIN items_pedido ip ON ip.pedido_id = v.pedido_id AND ip.estado != 'cancelado'
+    INNER JOIN variantes_producto vp ON vp.id = ip.variante_id
+    INNER JOIN productos p ON p.id = vp.producto_id
+    INNER JOIN categorias c ON c.id = p.categoria_id
+    WHERE v.pagado_at >= ? AND v.pagado_at < ?
+    GROUP BY c.id, c.nombre, c.emoji
+    ORDER BY total_vendido DESC, cantidad_vendida DESC
+  `).all(desdeSql, hastaSql);
+
+  return {
+    periodo,
+    desde: desdeSql,
+    hasta: toSqlDateTime(new Date(hasta.getTime() - 1000)),
+    categorias: filas.map((row) => ({
+      categoria_id: row.categoria_id,
+      categoria: row.categoria,
+      emoji: row.emoji,
+      cantidad_vendida: Number(row.cantidad_vendida),
+      total_vendido: Number(row.total_vendido),
+    })),
+  };
+}
+
 // Resumen consolidado para el dashboard: ventas, gastos, top productos y alertas de stock bajo.
 function getResumenDashboard(filtros = {}) {
   const ventas = getResumenVentas(filtros);
   const gastos = getResumenGastos(filtros);
   const topProductos = getTopProductosVendidos({ ...filtros, limite: filtros.limite ?? 5 });
+  const ventasDiarias = getVentasDiarias(filtros);
+  const porCategoria = getVentasPorCategoria(filtros);
   const insumosConStockBajo = insumos.getInsumosConStockBajo();
 
   return {
@@ -201,12 +273,17 @@ function getResumenDashboard(filtros = {}) {
       total: ventas.total_ventas,
       total_efectivo: ventas.total_efectivo,
       total_transferencia: ventas.total_transferencia,
+      ticket_promedio: ventas.cantidad_ventas > 0
+        ? Math.round(ventas.total_ventas / ventas.cantidad_ventas)
+        : 0,
     },
     gastos: {
       cantidad: gastos.cantidad_gastos,
       total: gastos.total_gastos,
     },
     ingresos_netos: ventas.total_ventas - gastos.total_gastos,
+    ventas_diarias: ventasDiarias.dias,
+    por_categoria: porCategoria.categorias,
     top_productos: topProductos.productos,
     stock_bajo: {
       cantidad: insumosConStockBajo.length,
@@ -248,6 +325,23 @@ async function generarReporteExcel(filtros = {}) {
   ]);
   hojaResumen.getRow(1).font = { bold: true };
 
+  const hojaDiarias = workbook.addWorksheet('Ventas diarias');
+  hojaDiarias.columns = [
+    { header: 'Fecha', key: 'fecha', width: 14 },
+    { header: 'Pedidos', key: 'cantidad_ventas', width: 12 },
+    { header: 'Efectivo', key: 'total_efectivo', width: 16 },
+    { header: 'Transferencia', key: 'total_transferencia', width: 16 },
+    { header: 'Total', key: 'total', width: 16 },
+  ];
+  hojaDiarias.addRows(resumen.ventas_diarias.map((d) => ({
+    fecha: d.fecha,
+    cantidad_ventas: d.cantidad_ventas,
+    total_efectivo: formatMoneda(d.total_efectivo),
+    total_transferencia: formatMoneda(d.total_transferencia),
+    total: formatMoneda(d.total),
+  })));
+  hojaDiarias.getRow(1).font = { bold: true };
+
   const hojaTopProductos = workbook.addWorksheet('Top productos');
   hojaTopProductos.columns = [
     { header: 'Producto', key: 'producto', width: 30 },
@@ -260,6 +354,19 @@ async function generarReporteExcel(filtros = {}) {
     total_vendido: formatMoneda(p.total_vendido),
   })));
   hojaTopProductos.getRow(1).font = { bold: true };
+
+  const hojaCategorias = workbook.addWorksheet('Por categoría');
+  hojaCategorias.columns = [
+    { header: 'Categoría', key: 'categoria', width: 28 },
+    { header: 'Cantidad vendida', key: 'cantidad_vendida', width: 20 },
+    { header: 'Total vendido', key: 'total_vendido', width: 20 },
+  ];
+  hojaCategorias.addRows(resumen.por_categoria.map((c) => ({
+    categoria: c.categoria,
+    cantidad_vendida: c.cantidad_vendida,
+    total_vendido: formatMoneda(c.total_vendido),
+  })));
+  hojaCategorias.getRow(1).font = { bold: true };
 
   const hojaStockBajo = workbook.addWorksheet('Stock bajo');
   hojaStockBajo.columns = [
@@ -288,4 +395,6 @@ module.exports = {
   getResumenGastos,
   getResumenVentas,
   getTopProductosVendidos,
+  getVentasDiarias,
+  getVentasPorCategoria,
 };

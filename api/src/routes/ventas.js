@@ -4,6 +4,7 @@ const { requireRol } = auth;
 const pedidos = require('../models/pedidos');
 const sesiones = require('../models/sesiones');
 const ventas = require('../models/ventas');
+const { publishPedidosChanged } = require('../realtime/hub');
 
 function isMissing(value) {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
@@ -81,11 +82,13 @@ router.post('/', (req, res) => {
       comentario: req.body.pagos.comentario ?? req.body.pagos.descripcion ?? req.body.pagos.descripcion_transferencia,
     };
 
-    return res.status(201).json(ventas.create({
+    const venta = ventas.create({
       ...req.body,
       caja_id: pedido.caja_id,
       usuario_cobro_id: req.usuario.id,
-    }));
+    });
+    publishPedidosChanged(pedido.caja_id);
+    return res.status(201).json(venta);
   } catch (err) {
     return handleError(res, err);
   }
