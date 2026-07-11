@@ -130,7 +130,7 @@ El endpoint de autenticación ahora utiliza el nombre completo del usuario en lu
 
 ```json
 {
-	"nombre_completo": "Admin Principal Lina",
+	"nombre_completo": "Administrador",
 	"pin": "1234"
 }
 ```
@@ -142,7 +142,7 @@ El endpoint de autenticación ahora utiliza el nombre completo del usuario en lu
 {
 	"token": "eyJ...",
 	"usuario": {
-		"nombre_completo": "Admin Principal Lina",
+		"nombre_completo": "Administrador",
 		"rol": "admin"
 	}
 }

@@ -352,7 +352,23 @@ function ensureEmojiColumns() {
 }
 
 function ensureDefaultMediosPago() {
-  const defaults = ['Bancolombia', 'Nequi', 'Daviplata', 'Davivienda', 'BBVA'];
+  const defaults = [
+    'Bancolombia',
+    'Nequi',
+    'Daviplata',
+    'Davivienda',
+    'Banco de Bogotá',
+    'BBVA',
+    'Scotiabank Colpatria',
+    'Banco Popular',
+    'Banco Caja Social',
+    'Banco AV Villas',
+    'Movii',
+    'Dale!',
+    'RappiPay',
+    'Lulo Bank',
+    'Nu',
+  ];
   for (const nombre of defaults) {
     const exists = db.prepare('SELECT id FROM medios_pago_transferencia WHERE nombre = ?').get(nombre);
     if (!exists) {

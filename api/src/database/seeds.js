@@ -1,139 +1,110 @@
 const { randomUUID } = require('crypto');
 const db = require('./db');
+const { hashPin } = require('../middlewares/hashPin');
 
+/** Medios de pago / billeteras más usados en Colombia para transferencias. */
+const MEDIOS_PAGO_COLOMBIA = [
+  'Bancolombia',
+  'Nequi',
+  'Daviplata',
+  'Davivienda',
+  'Banco de Bogotá',
+  'BBVA',
+  'Scotiabank Colpatria',
+  'Banco Popular',
+  'Banco Caja Social',
+  'Banco AV Villas',
+  'Movii',
+  'Dale!',
+  'RappiPay',
+  'Lulo Bank',
+  'Nu',
+];
+
+function newId() {
+  return randomUUID().replace(/-/g, '').toLowerCase();
+}
+
+/**
+ * Datos mínimos de arranque cuando la BD está vacía (SMARTTABLE_AUTO_SEED=1):
+ * - Roles del sistema
+ * - 1 usuario administrador (PIN 1234)
+ * - Salón principal con 5 mesas
+ * - Medios de pago comunes en Colombia
+ */
 function runSeeds() {
   const seedTransaction = db.transaction(() => {
-    const adminRolId = randomUUID().replace(/-/g, '').toLowerCase();
-    const cajeroRolId = randomUUID().replace(/-/g, '').toLowerCase();
-    const meseroRolId = randomUUID().replace(/-/g, '').toLowerCase();
+    const adminRolId = newId();
+    const cajeroRolId = newId();
+    const meseroRolId = newId();
 
-    db.prepare('INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)').run(adminRolId, 'admin', 'Administrador del sistema');
-    db.prepare('INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)').run(cajeroRolId, 'cajero', 'Encargado de caja y cobros');
-    db.prepare('INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)').run(meseroRolId, 'mesero', 'Atención y toma de pedidos');
+    db.prepare('INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)').run(
+      adminRolId,
+      'admin',
+      'Administrador del sistema'
+    );
+    db.prepare('INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)').run(
+      cajeroRolId,
+      'cajero',
+      'Encargado de caja y cobros'
+    );
+    db.prepare('INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)').run(
+      meseroRolId,
+      'mesero',
+      'Atención y toma de pedidos'
+    );
 
-    const anaId = randomUUID().replace(/-/g, '').toLowerCase();
-    const luisId = randomUUID().replace(/-/g, '').toLowerCase();
-    const mariaId = randomUUID().replace(/-/g, '').toLowerCase();
+    const adminId = newId();
+    db.prepare(
+      `INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at)
+       VALUES (?, ?, ?, ?, ?, 1, datetime('now'))`
+    ).run(
+      adminId,
+      adminRolId,
+      'Administrador',
+      'admin@smarttable.local',
+      hashPin('1234')
+    );
 
-    db.prepare('INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))').run(anaId, adminRolId, 'Ana García', 'ana@pos.com', 'HASH:1234', 1);
-    db.prepare('INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))').run(luisId, cajeroRolId, 'Luis Pérez', 'luis@pos.com', 'HASH:1234', 1);
-    db.prepare('INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))').run(mariaId, meseroRolId, 'María López', 'maria@pos.com', 'HASH:1234', 1);
+    const salonPrincipalId = newId();
+    db.prepare('INSERT INTO ubicaciones (id, nombre, activo) VALUES (?, ?, 1)').run(
+      salonPrincipalId,
+      'Salón principal'
+    );
 
-    const distribuidoraCentralId = randomUUID().replace(/-/g, '').toLowerCase();
-    const lacteosDelValleId = randomUUID().replace(/-/g, '').toLowerCase();
+    const insertMesa = db.prepare(
+      'INSERT INTO mesas (id, ubicacion_id, nombre, estado) VALUES (?, ?, ?, ?)'
+    );
+    for (let n = 1; n <= 5; n += 1) {
+      insertMesa.run(newId(), salonPrincipalId, `Mesa ${n}`, 'libre');
+    }
 
-    db.prepare('INSERT INTO proveedores (id, nombre_empresa, persona_contacto, telefono, email, direccion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)').run(distribuidoraCentralId, 'Distribuidora Central', 'Carlos Ruiz', '3000000001', 'contacto@distribuidoracentral.com', 'Calle 10 # 20-30', 1);
-    db.prepare('INSERT INTO proveedores (id, nombre_empresa, persona_contacto, telefono, email, direccion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)').run(lacteosDelValleId, 'Lácteos del Valle', 'Sofía Mora', '3000000002', 'ventas@lacteosdelvalle.com', 'Carrera 15 # 45-12', 1);
-
-    const bebidasCategoriaId = randomUUID().replace(/-/g, '').toLowerCase();
-    const platosFuertesCategoriaId = randomUUID().replace(/-/g, '').toLowerCase();
-    const postresCategoriaId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO categorias (id, nombre, activo) VALUES (?, ?, ?)').run(bebidasCategoriaId, 'Bebidas', 1);
-    db.prepare('INSERT INTO categorias (id, nombre, activo) VALUES (?, ?, ?)').run(platosFuertesCategoriaId, 'Platos fuertes', 1);
-    db.prepare('INSERT INTO categorias (id, nombre, activo) VALUES (?, ?, ?)').run(postresCategoriaId, 'Postres', 1);
-
-    const cafeMolidoId = randomUUID().replace(/-/g, '').toLowerCase();
-    const lecheId = randomUUID().replace(/-/g, '').toLowerCase();
-    const polloId = randomUUID().replace(/-/g, '').toLowerCase();
-    const arrozId = randomUUID().replace(/-/g, '').toLowerCase();
-    const chocolateId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO insumos (id, proveedor_id, nombre, unidad, cantidad_actual, stock_minimo, costo_unitario, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(cafeMolidoId, distribuidoraCentralId, 'Café molido', 'g', 2000, 500, 0.05, 1);
-    db.prepare('INSERT INTO insumos (id, proveedor_id, nombre, unidad, cantidad_actual, stock_minimo, costo_unitario, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(lecheId, lacteosDelValleId, 'Leche', 'ml', 5000, 1000, 0.003, 1);
-    db.prepare('INSERT INTO insumos (id, proveedor_id, nombre, unidad, cantidad_actual, stock_minimo, costo_unitario, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(polloId, distribuidoraCentralId, 'Pollo', 'g', 3000, 500, 0.008, 1);
-    db.prepare('INSERT INTO insumos (id, proveedor_id, nombre, unidad, cantidad_actual, stock_minimo, costo_unitario, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(arrozId, distribuidoraCentralId, 'Arroz', 'g', 5000, 1000, 0.002, 1);
-    db.prepare('INSERT INTO insumos (id, proveedor_id, nombre, unidad, cantidad_actual, stock_minimo, costo_unitario, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(chocolateId, lacteosDelValleId, 'Chocolate', 'g', 1000, 200, 0.01, 1);
-
-    const cafeId = randomUUID().replace(/-/g, '').toLowerCase();
-    const pechugaId = randomUUID().replace(/-/g, '').toLowerCase();
-    const brownieId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, activo) VALUES (?, ?, ?, ?, ?)').run(cafeId, bebidasCategoriaId, 'Café', 'Bebida caliente artesanal', 1);
-    db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, activo) VALUES (?, ?, ?, ?, ?)').run(pechugaId, platosFuertesCategoriaId, 'Pechuga a la plancha', 'Plato fuerte con guarnición', 1);
-    db.prepare('INSERT INTO productos (id, categoria_id, nombre, descripcion, activo) VALUES (?, ?, ?, ?, ?)').run(brownieId, postresCategoriaId, 'Brownie', 'Postre de chocolate', 1);
-
-    const cafeNegroId = randomUUID().replace(/-/g, '').toLowerCase();
-    const cafeConLecheId = randomUUID().replace(/-/g, '').toLowerCase();
-    const porcionPequenaId = randomUUID().replace(/-/g, '').toLowerCase();
-    const porcionGrandeId = randomUUID().replace(/-/g, '').toLowerCase();
-    const brownieIndividualId = randomUUID().replace(/-/g, '').toLowerCase();
-    const brownieConHeladoId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, ?)').run(cafeNegroId, cafeId, 'Café negro', 3500, 1);
-    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, ?)').run(cafeConLecheId, cafeId, 'Café con leche', 4200, 1);
-    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, ?)').run(porcionPequenaId, pechugaId, 'Porción pequeña', 12000, 1);
-    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, ?)').run(porcionGrandeId, pechugaId, 'Porción grande', 16000, 1);
-    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, ?)').run(brownieIndividualId, brownieId, 'Individual', 5000, 1);
-    db.prepare('INSERT INTO variantes_producto (id, producto_id, nombre, precio, activo) VALUES (?, ?, ?, ?, ?)').run(brownieConHeladoId, brownieId, 'Con helado', 7500, 1);
-
-    const recetaCafeNegroId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaCafeConLecheCafeId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaCafeConLecheLecheId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaPorcionPequenaPolloId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaPorcionPequenaArrozId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaPorcionGrandePolloId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaPorcionGrandeArrozId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaBrownieIndividualId = randomUUID().replace(/-/g, '').toLowerCase();
-    const recetaBrownieConHeladoId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaCafeNegroId, cafeNegroId, cafeMolidoId, 10);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaCafeConLecheCafeId, cafeConLecheId, cafeMolidoId, 10);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaCafeConLecheLecheId, cafeConLecheId, lecheId, 150);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaPorcionPequenaPolloId, porcionPequenaId, polloId, 150);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaPorcionPequenaArrozId, porcionPequenaId, arrozId, 100);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaPorcionGrandePolloId, porcionGrandeId, polloId, 250);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaPorcionGrandeArrozId, porcionGrandeId, arrozId, 150);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaBrownieIndividualId, brownieIndividualId, chocolateId, 40);
-    db.prepare('INSERT INTO recetas (id, variante_id, insumo_id, cantidad_requerida) VALUES (?, ?, ?, ?)').run(recetaBrownieConHeladoId, brownieConHeladoId, chocolateId, 40);
-
-    const salonPrincipalId = randomUUID().replace(/-/g, '').toLowerCase();
-    const terrazaId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO ubicaciones (id, nombre, activo) VALUES (?, ?, ?)').run(salonPrincipalId, 'Salón principal', 1);
-    db.prepare('INSERT INTO ubicaciones (id, nombre, activo) VALUES (?, ?, ?)').run(terrazaId, 'Terraza', 1);
-
-    const mesa1Id = randomUUID().replace(/-/g, '').toLowerCase();
-    const mesa2Id = randomUUID().replace(/-/g, '').toLowerCase();
-    const mesa3Id = randomUUID().replace(/-/g, '').toLowerCase();
-    const mesa4Id = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO mesas (id, ubicacion_id, nombre, estado) VALUES (?, ?, ?, ?)').run(mesa1Id, salonPrincipalId, 'Mesa 1', 'libre');
-    db.prepare('INSERT INTO mesas (id, ubicacion_id, nombre, estado) VALUES (?, ?, ?, ?)').run(mesa2Id, salonPrincipalId, 'Mesa 2', 'libre');
-    db.prepare('INSERT INTO mesas (id, ubicacion_id, nombre, estado) VALUES (?, ?, ?, ?)').run(mesa3Id, terrazaId, 'Mesa 3', 'libre');
-    db.prepare('INSERT INTO mesas (id, ubicacion_id, nombre, estado) VALUES (?, ?, ?, ?)').run(mesa4Id, terrazaId, 'Mesa 4', 'libre');
-
-    const cajaAbiertaId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO cajas (id, usuario_id, monto_apertura, monto_cierre, apertura_at, cierre_at, estado) VALUES (?, ?, ?, ?, datetime(\'now\'), NULL, ?)').run(cajaAbiertaId, anaId, 50000, 0, 'abierta');
-
-    const sesionActivaId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO sesiones (id, usuario_id, caja_id, rol_sesion, inicio_at, fin_at) VALUES (?, ?, ?, \'titular\', datetime(\'now\'), NULL)').run(sesionActivaId, anaId, cajaAbiertaId);
-
-    const pedidoId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO pedidos (id, mesa_id, usuario_id, caja_id, estado, created_at) VALUES (?, ?, ?, ?, ?, datetime(\'now\'))').run(pedidoId, mesa1Id, mariaId, cajaAbiertaId, 'abierto');
-
-    const itemCafeConLecheId = randomUUID().replace(/-/g, '').toLowerCase();
-    const itemPorcionGrandeId = randomUUID().replace(/-/g, '').toLowerCase();
-
-    db.prepare('INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)').run(itemCafeConLecheId, pedidoId, cafeConLecheId, 2, 4200, 'pendiente');
-    db.prepare('INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)').run(itemPorcionGrandeId, pedidoId, porcionGrandeId, 1, 16000, 'pendiente');
+    const insertMedio = db.prepare(
+      'INSERT INTO medios_pago_transferencia (id, nombre, activo) VALUES (?, ?, 1)'
+    );
+    for (const nombre of MEDIOS_PAGO_COLOMBIA) {
+      const exists = db
+        .prepare('SELECT id FROM medios_pago_transferencia WHERE nombre = ?')
+        .get(nombre);
+      if (!exists) {
+        insertMedio.run(newId(), nombre);
+      }
+    }
   });
 
   try {
     seedTransaction();
-    console.log('Seeds ejecutados correctamente');
+    console.log(
+      'Seeds básicos ejecutados: Administrador (PIN 1234), Salón principal (5 mesas), medios de pago Colombia.'
+    );
   } catch (error) {
     console.error('Error ejecutando seeds:', error);
     throw error;
   }
 }
 
-module.exports = { runSeeds };
+module.exports = { runSeeds, MEDIOS_PAGO_COLOMBIA };
 
-// Ejecutar seeds solo cuando se invoca directamente como script.
 if (require.main === module) {
   runSeeds();
 }

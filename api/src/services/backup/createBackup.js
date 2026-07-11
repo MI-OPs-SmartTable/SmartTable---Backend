@@ -72,4 +72,5 @@ async function createBackup() {
 module.exports = {
   createBackup,
   getBackupDir,
+  getDbPath,
 };

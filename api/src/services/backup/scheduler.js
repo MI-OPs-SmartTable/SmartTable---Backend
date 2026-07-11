@@ -94,7 +94,11 @@ function startBackupScheduler() {
   scheduledTask.start();
   console.log(`[backup] Programado cada ${minutes} minuto(s). Archivo fijo: ${getBackupFileName()}`);
 
-  if (shouldRunOnStart()) {
+  const { consumeSkipBackupOnStart } = require('./restoreBackup');
+  const skipOnStart = consumeSkipBackupOnStart();
+  if (skipOnStart) {
+    console.log('[backup] Se omite el respaldo al arrancar (recién se restauró la BD).');
+  } else if (shouldRunOnStart()) {
     runBackupCycle().catch((error) => {
       console.error('[backup] Error en respaldo inicial:', error.message);
     });

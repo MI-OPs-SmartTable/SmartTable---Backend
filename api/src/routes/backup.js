@@ -1,3 +1,4 @@
+const express = require('express');
 const router = require('express').Router();
 const auth = require('../middlewares/auth');
 const { requireRol } = auth;
@@ -12,11 +13,24 @@ const {
   getOAuthRedirectUri,
   revokeGoogleAccess,
 } = require('../services/backup/googleDrive');
+const {
+  restoreFromUploadBuffer,
+  scheduleProcessRestart,
+} = require('../services/backup/restoreBackup');
 
 const adminOnly = [auth, requireRol('admin')];
 
 function handleError(res, err, status = 500) {
   return res.status(status).json({ error: err.message || 'Error interno' });
+}
+
+function decodeFilenameHeader(value) {
+  if (!value) return 'backup.db.gz';
+  try {
+    return decodeURIComponent(String(value));
+  } catch {
+    return String(value);
+  }
 }
 
 router.get('/config', ...adminOnly, (req, res) => {
@@ -189,5 +203,34 @@ router.post('/run', ...adminOnly, async (req, res) => {
     return handleError(res, err);
   }
 });
+
+router.post(
+  '/restore',
+  ...adminOnly,
+  express.raw({
+    type: () => true,
+    limit: '200mb',
+  }),
+  async (req, res) => {
+    try {
+      const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || []);
+      if (!buffer.length) {
+        return res.status(400).json({
+          error: 'Debes subir el archivo de respaldo (.db.gz, .db o .sqlite)',
+        });
+      }
+
+      const fileName = decodeFilenameHeader(req.headers['x-backup-filename']);
+      const result = await restoreFromUploadBuffer(buffer, fileName);
+
+      res.status(200).json(result);
+      if (result.requiresRestart) {
+        scheduleProcessRestart(result.restartExitCode);
+      }
+    } catch (err) {
+      return handleError(res, err, 400);
+    }
+  }
+);
 
 module.exports = router;
