@@ -14,7 +14,7 @@ function ensureSesionesSchema() {
         usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
         caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
         rol_sesion TEXT NOT NULL DEFAULT 'titular' CHECK (rol_sesion IN ('titular', 'colaborador')),
-        inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
+        inicio_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
         fin_at TEXT
       );
 
@@ -26,7 +26,7 @@ function ensureSesionesSchema() {
         'titular',
         inicio_at,
         CASE
-          WHEN caja_id IS NULL AND fin_at IS NULL THEN datetime('now')
+          WHEN caja_id IS NULL AND fin_at IS NULL THEN datetime('now', 'localtime')
           ELSE fin_at
         END
       FROM sesiones_old;
@@ -37,7 +37,7 @@ function ensureSesionesSchema() {
 
   db.prepare(`
     UPDATE sesiones
-    SET fin_at = datetime('now')
+    SET fin_at = datetime('now', 'localtime')
     WHERE caja_id IS NULL AND fin_at IS NULL
   `).run();
 
@@ -77,7 +77,7 @@ function ensureVentasSchema() {
       medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
       comentario TEXT,
       metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
-      pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
+      pagado_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     INSERT INTO ventas (id, pedido_id, caja_id, usuario_cobro_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at)
@@ -108,7 +108,7 @@ function ensureSesionesCajaNullable() {
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))) ,
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
       caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
-      inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
+      inicio_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       fin_at TEXT
     );
 
@@ -142,7 +142,7 @@ function runMigrations() {
       email TEXT NOT NULL UNIQUE,
       pin_hash TEXT NOT NULL,
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1)),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS proveedores (
@@ -216,8 +216,8 @@ function runMigrations() {
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
       monto_apertura REAL NOT NULL DEFAULT 0 CHECK (monto_apertura >= 0),
       monto_cierre REAL NOT NULL DEFAULT 0 CHECK (monto_cierre >= 0),
-      apertura_at TEXT NOT NULL DEFAULT (datetime('now')),
-      cierre_at TEXT DEFAULT (datetime('now')),
+      apertura_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      cierre_at TEXT DEFAULT (datetime('now', 'localtime')),
       estado TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('abierta', 'cerrada'))
     );
 
@@ -225,7 +225,7 @@ function runMigrations() {
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
       caja_id TEXT REFERENCES cajas(id) ON DELETE CASCADE,
-      inicio_at TEXT NOT NULL DEFAULT (datetime('now')),
+      inicio_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       fin_at TEXT
     );
 
@@ -235,7 +235,7 @@ function runMigrations() {
       usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
       caja_id TEXT NOT NULL REFERENCES cajas(id) ON DELETE CASCADE,
       estado TEXT NOT NULL DEFAULT 'abierto' CHECK (estado IN ('abierto', 'enviado', 'listo', 'pagado', 'cancelado')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS items_pedido (
@@ -263,7 +263,7 @@ function runMigrations() {
       medio_transferencia_id TEXT REFERENCES medios_pago_transferencia(id) ON DELETE RESTRICT,
       comentario TEXT,
       metodo_pago TEXT NOT NULL CHECK (metodo_pago IN ('efectivo', 'transferencia', 'mixto')),
-      pagado_at TEXT NOT NULL DEFAULT (datetime('now'))
+      pagado_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS gastos_caja (
@@ -273,7 +273,7 @@ function runMigrations() {
       monto REAL NOT NULL CHECK (monto >= 0),
       descripcion TEXT NOT NULL,
       categoria TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE TABLE IF NOT EXISTS compras_insumo (
@@ -286,7 +286,7 @@ function runMigrations() {
       cantidad_nueva REAL NOT NULL CHECK (cantidad_nueva >= 0),
       costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0),
       total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_usuarios_rol_id ON usuarios (rol_id);
@@ -333,7 +333,7 @@ function ensureComprasInsumoTable() {
       cantidad_nueva REAL NOT NULL CHECK (cantidad_nueva >= 0),
       costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0),
       total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
     );
     CREATE INDEX IF NOT EXISTS idx_compras_insumo_insumo_id ON compras_insumo (insumo_id);
     CREATE INDEX IF NOT EXISTS idx_compras_insumo_created_at ON compras_insumo (created_at);

@@ -6,6 +6,7 @@ const {
   ensureText,
   fetchById,
   newId,
+  nowLocalSql,
 } = require('./_utils');
 
 function getAll() {
@@ -127,8 +128,8 @@ function insertMovimiento({
   const id = newId();
   db.prepare(`
     INSERT INTO compras_insumo (
-      id, insumo_id, proveedor_id, tipo, cantidad, cantidad_anterior, cantidad_nueva, costo_unitario, total
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      id, insumo_id, proveedor_id, tipo, cantidad, cantidad_anterior, cantidad_nueva, costo_unitario, total, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     insumoId,
@@ -138,7 +139,8 @@ function insertMovimiento({
     cantidadAnterior,
     cantidadNueva,
     costoUnitario,
-    total
+    total,
+    nowLocalSql()
   );
   return id;
 }

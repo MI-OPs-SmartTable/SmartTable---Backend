@@ -1,5 +1,5 @@
 const db = require('../database/db');
-const { ensureExists, ensureNonNegative, ensureText, fetchById, newId } = require('./_utils');
+const { ensureExists, ensureNonNegative, ensureText, fetchById, newId, nowLocalSql } = require('./_utils');
 
 function getAll() {
   return db.prepare('SELECT * FROM cajas ORDER BY apertura_at DESC').all();
@@ -24,7 +24,7 @@ function create(data) {
 
   const montoApertura = ensureNonNegative(data.monto_apertura ?? 0, 'El monto de apertura');
   const montoCierre = ensureNonNegative(data.monto_cierre ?? 0, 'El monto de cierre');
-  const aperturaAt = data.apertura_at ? String(data.apertura_at).trim() : new Date().toISOString().replace('T', ' ').replace('Z', '');
+  const aperturaAt = data.apertura_at ? String(data.apertura_at).trim() : nowLocalSql();
   const cierreAt = data.cierre_at ? String(data.cierre_at).trim() : null;
   const estado = data.estado !== undefined ? ensureText(data.estado, 'El estado de la caja') : 'abierta';
 
@@ -99,7 +99,7 @@ function close(id, data) {
   }
 
   const montoCierre = getMontoCierreAutomatico(id);
-  const cierreAt = new Date().toISOString().replace('T', ' ').replace('Z', '');
+  const cierreAt = nowLocalSql();
 
   db.prepare("UPDATE cajas SET monto_cierre = ?, cierre_at = ?, estado = 'cerrada' WHERE id = ?").run(montoCierre, cierreAt, id);
   return getById(id);

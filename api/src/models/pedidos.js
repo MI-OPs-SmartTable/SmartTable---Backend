@@ -7,6 +7,7 @@ const {
   ensureText,
   fetchById,
   newId,
+  nowLocalSql,
 } = require('./_utils');
 
 const ESTADOS_PEDIDO = ['abierto', 'enviado', 'listo', 'pagado', 'cancelado'];
@@ -129,12 +130,13 @@ function create(data) {
   const createPedidoTransaction = db.transaction((payload) => {
     const pedidoId = newId();
 
-    db.prepare('INSERT INTO pedidos (id, mesa_id, usuario_id, caja_id, estado) VALUES (?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO pedidos (id, mesa_id, usuario_id, caja_id, estado, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       pedidoId,
       payload.mesaId,
       payload.usuarioId,
       payload.cajaId,
-      'abierto'
+      'abierto',
+      nowLocalSql()
     );
 
     for (const item of payload.items) {

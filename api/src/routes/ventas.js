@@ -41,6 +41,14 @@ router.get('/', (req, res) => {
   }
 });
 
+router.get('/caja/:caja_id', (req, res) => {
+  try {
+    return res.status(200).json(ventas.getByCaja(req.params.caja_id));
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const venta = ventas.getById(req.params.id);

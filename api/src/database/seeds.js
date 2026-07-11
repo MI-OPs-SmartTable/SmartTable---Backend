@@ -57,7 +57,7 @@ function runSeeds() {
     const adminId = newId();
     db.prepare(
       `INSERT INTO usuarios (id, rol_id, nombre_completo, email, pin_hash, activo, created_at)
-       VALUES (?, ?, ?, ?, ?, 1, datetime('now'))`
+       VALUES (?, ?, ?, ?, ?, 1, datetime('now', 'localtime'))`
     ).run(
       adminId,
       adminRolId,
