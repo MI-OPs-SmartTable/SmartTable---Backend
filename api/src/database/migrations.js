@@ -244,7 +244,8 @@ function runMigrations() {
       variante_id TEXT NOT NULL REFERENCES variantes_producto(id) ON DELETE RESTRICT,
       cantidad REAL NOT NULL CHECK (cantidad > 0),
       precio_unitario REAL NOT NULL CHECK (precio_unitario >= 0),
-      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado'))
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado')),
+      nota TEXT
     );
 
     CREATE TABLE IF NOT EXISTS medios_pago_transferencia (
@@ -319,6 +320,14 @@ function runMigrations() {
   ensureDefaultMediosPago();
   ensureEmojiColumns();
   ensureComprasInsumoTable();
+  ensureItemsPedidoNotaColumn();
+}
+
+function ensureItemsPedidoNotaColumn() {
+  const tableInfo = db.prepare('PRAGMA table_info(items_pedido)').all();
+  if (!tableInfo.find((column) => column.name === 'nota')) {
+    db.exec(`ALTER TABLE items_pedido ADD COLUMN nota TEXT`);
+  }
 }
 
 function ensureComprasInsumoTable() {

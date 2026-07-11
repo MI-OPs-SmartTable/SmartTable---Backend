@@ -655,7 +655,8 @@ function buildOperation(method, openApiPath, tag) {
                   properties: {
                     variante_id: { type: 'string', example: 'variante_123' },
                     cantidad: { type: 'number', minimum: 0.0001, example: 1 },
-                    precio_unitario: { type: 'number', minimum: 0, nullable: true, example: 3500 }
+                    precio_unitario: { type: 'number', minimum: 0, nullable: true, example: 3500 },
+                    nota: { type: 'string', nullable: true, example: 'Sin cebolla' }
                   }
                 }
               }

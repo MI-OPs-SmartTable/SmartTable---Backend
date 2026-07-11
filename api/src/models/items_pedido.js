@@ -1,5 +1,5 @@
 const db = require('../database/db');
-const { ensureCajaAbierta, ensureExists, ensureNonNegative, ensurePositive, ensureText, fetchById, newId } = require('./_utils');
+const { ensureCajaAbierta, ensureExists, ensureNonNegative, ensurePositive, ensureText, fetchById, newId, normalizeText } = require('./_utils');
 
 const ESTADOS_ITEM = ['pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado'];
 
@@ -42,19 +42,21 @@ function create(data) {
     ? ensureNonNegative(data.precio_unitario, 'El precio unitario del item')
     : Number(variante.precio);
   const estado = data.estado !== undefined ? ensureText(data.estado, 'El estado del item') : 'pendiente';
+  const nota = normalizeText(data.nota);
 
   if (!ESTADOS_ITEM.includes(estado)) {
     throw new Error('Estado de item inválido: ' + estado);
   }
 
   const id = newId();
-  db.prepare('INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado, nota) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
     id,
     pedidoId,
     varianteId,
     cantidad,
     precioUnitario,
-    estado
+    estado,
+    nota
   );
 
   return getById(id);
@@ -80,17 +82,19 @@ function update(id, data) {
   const cantidad = data.cantidad !== undefined ? ensurePositive(data.cantidad, 'La cantidad del item') : current.cantidad;
   const precioUnitario = data.precio_unitario !== undefined ? ensureNonNegative(data.precio_unitario, 'El precio unitario del item') : current.precio_unitario;
   const estado = data.estado !== undefined ? ensureText(data.estado, 'El estado del item') : current.estado;
+  const nota = data.nota !== undefined ? normalizeText(data.nota) : current.nota;
 
   if (!ESTADOS_ITEM.includes(estado)) {
     throw new Error('Estado de item inválido: ' + estado);
   }
 
-  db.prepare('UPDATE items_pedido SET pedido_id = ?, variante_id = ?, cantidad = ?, precio_unitario = ?, estado = ? WHERE id = ?').run(
+  db.prepare('UPDATE items_pedido SET pedido_id = ?, variante_id = ?, cantidad = ?, precio_unitario = ?, estado = ?, nota = ? WHERE id = ?').run(
     pedidoId,
     varianteId,
     cantidad,
     precioUnitario,
     estado,
+    nota,
     id
   );
 
