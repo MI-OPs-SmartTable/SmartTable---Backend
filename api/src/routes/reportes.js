@@ -34,4 +34,47 @@ router.get('/top-productos', (req, res) => {
   }
 });
 
+router.get('/ventas-resumen', (req, res) => {
+  try {
+    const resultado = reportes.getResumenVentas({
+      periodo: req.query.periodo,
+      fecha: req.query.fecha,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    return res.status(200).json(resultado);
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.get('/gastos-resumen', (req, res) => {
+  try {
+    const resultado = reportes.getResumenGastos({
+      periodo: req.query.periodo,
+      fecha: req.query.fecha,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    return res.status(200).json(resultado);
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.get('/dashboard', (req, res) => {
+  try {
+    const resultado = reportes.getResumenDashboard({
+      periodo: req.query.periodo,
+      fecha: req.query.fecha,
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+      limite: req.query.limite,
+    });
+    return res.status(200).json(resultado);
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
 module.exports = router;

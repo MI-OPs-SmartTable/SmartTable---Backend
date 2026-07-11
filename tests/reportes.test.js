@@ -150,4 +150,100 @@ describe('Reportes', () => {
     const pechuga = response.body.productos.find((p) => p.producto_id === db.seedData.pechugaId);
     expect(pechuga).toEqual(expect.objectContaining({ cantidad_vendida: 3, total_vendido: 48000 }));
   });
+
+  describe('GET /api/reportes/ventas-resumen', () => {
+    it('debe rechazar el acceso a roles distintos de admin', async () => {
+      const response = await request(app)
+        .get('/api/reportes/ventas-resumen')
+        .set('Authorization', cajeroAuthHeader);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('debe sumar la cantidad y el total de ventas pagadas del mes actual', async () => {
+      await crearVentaPagada({
+        usuarioId: db.seedData.mariaId,
+        varianteId: db.seedData.cafeNegroId,
+        cantidad: 4,
+        precioUnitario: PRECIOS.cafeNegro,
+      });
+
+      const response = await request(app)
+        .get('/api/reportes/ventas-resumen?periodo=mes')
+        .set('Authorization', adminAuthHeader);
+
+      expect(response.status).toBe(200);
+      expect(response.body.periodo).toBe('mes');
+      expect(response.body.cantidad_ventas).toBeGreaterThanOrEqual(1);
+      expect(response.body.total_ventas).toBeGreaterThanOrEqual(4 * PRECIOS.cafeNegro);
+      expect(response.body.total_efectivo).toBeGreaterThanOrEqual(4 * PRECIOS.cafeNegro);
+    });
+  });
+
+  describe('GET /api/reportes/gastos-resumen', () => {
+    it('debe rechazar el acceso a roles distintos de admin', async () => {
+      const response = await request(app)
+        .get('/api/reportes/gastos-resumen')
+        .set('Authorization', cajeroAuthHeader);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('debe sumar la cantidad y el total de gastos de caja del mes actual', async () => {
+      await request(app)
+        .post('/api/gastos-caja')
+        .set('Authorization', adminAuthHeader)
+        .send({
+          caja_id: db.seedData.cajaAbiertaId,
+          usuario_id: db.seedData.anaId,
+          monto: 15000,
+          descripcion: 'Compra de servilletas',
+          categoria: 'insumos',
+        });
+
+      const response = await request(app)
+        .get('/api/reportes/gastos-resumen?periodo=mes')
+        .set('Authorization', adminAuthHeader);
+
+      expect(response.status).toBe(200);
+      expect(response.body.periodo).toBe('mes');
+      expect(response.body.cantidad_gastos).toBeGreaterThanOrEqual(1);
+      expect(response.body.total_gastos).toBeGreaterThanOrEqual(15000);
+    });
+  });
+
+  describe('GET /api/reportes/dashboard', () => {
+    it('debe rechazar el acceso a roles distintos de admin', async () => {
+      const response = await request(app)
+        .get('/api/reportes/dashboard')
+        .set('Authorization', cajeroAuthHeader);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('debe combinar ventas, gastos, top de productos y alertas de stock bajo', async () => {
+      db.prepare('UPDATE insumos SET cantidad_actual = 100 WHERE id = ?').run(db.seedData.chocolateId);
+
+      const response = await request(app)
+        .get('/api/reportes/dashboard?periodo=mes')
+        .set('Authorization', adminAuthHeader);
+
+      expect(response.status).toBe(200);
+      expect(response.body.periodo).toBe('mes');
+      expect(response.body.ventas).toEqual(expect.objectContaining({
+        cantidad: expect.any(Number),
+        total: expect.any(Number),
+      }));
+      expect(response.body.gastos).toEqual(expect.objectContaining({
+        cantidad: expect.any(Number),
+        total: expect.any(Number),
+      }));
+      expect(response.body.ingresos_netos).toBe(response.body.ventas.total - response.body.gastos.total);
+      expect(Array.isArray(response.body.top_productos)).toBe(true);
+
+      const chocolateBajo = response.body.stock_bajo.insumos.find((i) => i.id === db.seedData.chocolateId);
+      expect(chocolateBajo).toBeDefined();
+      expect(response.body.stock_bajo.cantidad).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

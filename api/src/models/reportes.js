@@ -1,4 +1,5 @@
 const db = require('../database/db');
+const insumos = require('./insumos');
 
 const PERIODOS = ['semana', 'mes'];
 const LIMITE_POR_DEFECTO = 5;
@@ -130,4 +131,87 @@ function getTopProductosVendidos(filtros = {}) {
   };
 }
 
-module.exports = { getTopProductosVendidos };
+// Totales de ventas (cantidad e ingresos por medio de pago) en un rango de fechas,
+// calculado sobre ventas ya pagadas.
+function getResumenVentas(filtros = {}) {
+  const { desde, hasta, periodo } = resolveRango(filtros);
+
+  const desdeSql = toSqlDateTime(desde);
+  const hastaSql = toSqlDateTime(hasta);
+
+  const resumen = db.prepare(`
+    SELECT
+      COUNT(*) AS cantidad_ventas,
+      COALESCE(SUM(total), 0) AS total_ventas,
+      COALESCE(SUM(monto_efectivo), 0) AS total_efectivo,
+      COALESCE(SUM(monto_transferencia), 0) AS total_transferencia
+    FROM ventas
+    WHERE pagado_at >= ? AND pagado_at < ?
+  `).get(desdeSql, hastaSql);
+
+  return {
+    periodo,
+    desde: desdeSql,
+    hasta: toSqlDateTime(new Date(hasta.getTime() - 1000)),
+    cantidad_ventas: Number(resumen.cantidad_ventas),
+    total_ventas: Number(resumen.total_ventas),
+    total_efectivo: Number(resumen.total_efectivo),
+    total_transferencia: Number(resumen.total_transferencia),
+  };
+}
+
+// Total de gastos de caja registrados en un rango de fechas.
+function getResumenGastos(filtros = {}) {
+  const { desde, hasta, periodo } = resolveRango(filtros);
+
+  const desdeSql = toSqlDateTime(desde);
+  const hastaSql = toSqlDateTime(hasta);
+
+  const resumen = db.prepare(`
+    SELECT
+      COUNT(*) AS cantidad_gastos,
+      COALESCE(SUM(monto), 0) AS total_gastos
+    FROM gastos_caja
+    WHERE created_at >= ? AND created_at < ?
+  `).get(desdeSql, hastaSql);
+
+  return {
+    periodo,
+    desde: desdeSql,
+    hasta: toSqlDateTime(new Date(hasta.getTime() - 1000)),
+    cantidad_gastos: Number(resumen.cantidad_gastos),
+    total_gastos: Number(resumen.total_gastos),
+  };
+}
+
+// Resumen consolidado para el dashboard: ventas, gastos, top productos y alertas de stock bajo.
+function getResumenDashboard(filtros = {}) {
+  const ventas = getResumenVentas(filtros);
+  const gastos = getResumenGastos(filtros);
+  const topProductos = getTopProductosVendidos({ ...filtros, limite: filtros.limite ?? 5 });
+  const insumosConStockBajo = insumos.getInsumosConStockBajo();
+
+  return {
+    periodo: ventas.periodo,
+    desde: ventas.desde,
+    hasta: ventas.hasta,
+    ventas: {
+      cantidad: ventas.cantidad_ventas,
+      total: ventas.total_ventas,
+      total_efectivo: ventas.total_efectivo,
+      total_transferencia: ventas.total_transferencia,
+    },
+    gastos: {
+      cantidad: gastos.cantidad_gastos,
+      total: gastos.total_gastos,
+    },
+    ingresos_netos: ventas.total_ventas - gastos.total_gastos,
+    top_productos: topProductos.productos,
+    stock_bajo: {
+      cantidad: insumosConStockBajo.length,
+      insumos: insumosConStockBajo,
+    },
+  };
+}
+
+module.exports = { getResumenDashboard, getResumenGastos, getResumenVentas, getTopProductosVendidos };
