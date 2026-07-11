@@ -7,6 +7,7 @@ const {
   ensureText,
   fetchById,
   newId,
+  normalizeText,
   nowLocalSql,
 } = require('./_utils');
 
@@ -150,10 +151,11 @@ function create(data) {
       const precioUnitario = item.precio_unitario !== undefined
         ? ensureNonNegative(item.precio_unitario, 'El precio unitario del item')
         : Number(variante.precio);
+      const nota = normalizeText(item.nota);
 
       db.prepare(
-        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(newId(), pedidoId, varianteId, cantidad, precioUnitario, 'pendiente');
+        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado, nota) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(newId(), pedidoId, varianteId, cantidad, precioUnitario, 'pendiente', nota);
     }
 
     return getPedidoConItems(pedidoId);
@@ -250,10 +252,11 @@ function replaceItems(id, items) {
       const precioUnitario = item.precio_unitario !== undefined
         ? ensureNonNegative(item.precio_unitario, 'El precio unitario del item')
         : Number(variante.precio);
+      const nota = normalizeText(item.nota);
 
       db.prepare(
-        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(newId(), payload.id, varianteId, cantidad, precioUnitario, 'pendiente');
+        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado, nota) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(newId(), payload.id, varianteId, cantidad, precioUnitario, 'pendiente', nota);
     }
 
     return getPedidoConItems(payload.id);
