@@ -306,6 +306,7 @@ function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_items_pedido_variante_id ON items_pedido (variante_id);
     CREATE INDEX IF NOT EXISTS idx_ventas_pedido_id ON ventas (pedido_id);
     CREATE INDEX IF NOT EXISTS idx_ventas_caja_id ON ventas (caja_id);
+    CREATE INDEX IF NOT EXISTS idx_ventas_pagado_at ON ventas (pagado_at);
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_caja_id ON gastos_caja (caja_id);
     CREATE INDEX IF NOT EXISTS idx_gastos_caja_usuario_id ON gastos_caja (usuario_id);
     CREATE INDEX IF NOT EXISTS idx_compras_insumo_insumo_id ON compras_insumo (insumo_id);
