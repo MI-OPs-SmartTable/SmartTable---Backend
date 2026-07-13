@@ -111,6 +111,7 @@ app.use('/api/proveedores', require('./routes/proveedores'));
 app.use('/api/categorias', require('./routes/categorias'));
 app.use('/api/insumos', require('./routes/insumos'));
 app.use('/api/productos', require('./routes/productos'));
+app.use('/api/importacion', require('./routes/importacion'));
 app.use('/api/variantes', require('./routes/variantes'));
 app.use('/api/recetas', require('./routes/recetas'));
 app.use('/api/ubicaciones', require('./routes/ubicaciones'));

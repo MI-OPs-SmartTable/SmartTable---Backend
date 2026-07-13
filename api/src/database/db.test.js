@@ -39,6 +39,7 @@ function runMigrations() {
     CREATE TABLE categorias (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       nombre TEXT NOT NULL UNIQUE,
+      emoji TEXT NOT NULL DEFAULT '📦',
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
     );
 
@@ -58,6 +59,7 @@ function runMigrations() {
       categoria_id TEXT NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
       nombre TEXT NOT NULL,
       descripcion TEXT,
+      emoji TEXT NOT NULL DEFAULT '📦',
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
     );
 
