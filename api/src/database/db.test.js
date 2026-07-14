@@ -39,6 +39,7 @@ function runMigrations() {
     CREATE TABLE categorias (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       nombre TEXT NOT NULL UNIQUE,
+      emoji TEXT NOT NULL DEFAULT '📦',
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
     );
 
@@ -58,6 +59,7 @@ function runMigrations() {
       categoria_id TEXT NOT NULL REFERENCES categorias(id) ON DELETE CASCADE,
       nombre TEXT NOT NULL,
       descripcion TEXT,
+      emoji TEXT NOT NULL DEFAULT '📦',
       activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0, 1))
     );
 
@@ -124,7 +126,8 @@ function runMigrations() {
       variante_id TEXT NOT NULL REFERENCES variantes_producto(id) ON DELETE RESTRICT,
       cantidad REAL NOT NULL CHECK (cantidad > 0),
       precio_unitario REAL NOT NULL CHECK (precio_unitario >= 0),
-      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado'))
+      estado TEXT NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'en_preparacion', 'listo', 'entregado', 'cancelado')),
+      nota TEXT
     );
 
     CREATE TABLE medios_pago_transferencia (
@@ -155,6 +158,28 @@ function runMigrations() {
       descripcion TEXT NOT NULL,
       categoria TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE compras_insumo (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      insumo_id TEXT NOT NULL REFERENCES insumos(id) ON DELETE CASCADE,
+      proveedor_id TEXT REFERENCES proveedores(id) ON DELETE SET NULL,
+      tipo TEXT NOT NULL CHECK (tipo IN ('agregar', 'fijar')),
+      cantidad REAL NOT NULL CHECK (cantidad >= 0),
+      cantidad_anterior REAL NOT NULL CHECK (cantidad_anterior >= 0),
+      cantidad_nueva REAL NOT NULL CHECK (cantidad_nueva >= 0),
+      costo_unitario REAL NOT NULL DEFAULT 0 CHECK (costo_unitario >= 0),
+      total REAL NOT NULL DEFAULT 0 CHECK (total >= 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE auth_sesiones (
+      id TEXT PRIMARY KEY,
+      usuario_id TEXT NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      revoked_at TEXT,
+      device_label TEXT
     );
   `);
 }
@@ -337,5 +362,27 @@ afterAll(() => {
 });
 
 db.seedData = seedData;
+
+db.issueAuthHeader = function issueAuthHeader(userId) {
+  const jwt = require('jsonwebtoken');
+  const id = randomUUID().replace(/-/g, '').toLowerCase();
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (date) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  const now = new Date();
+  const expires = new Date(Date.now() + 8 * 3600 * 1000);
+
+  db.prepare(`
+    INSERT INTO auth_sesiones (id, usuario_id, created_at, expires_at, revoked_at, device_label)
+    VALUES (?, ?, ?, ?, NULL, ?)
+  `).run(id, userId, fmt(now), fmt(expires), 'test');
+
+  const token = jwt.sign(
+    { id: userId, jti: id },
+    process.env.JWT_SECRET || 'test-secret',
+    { expiresIn: '8h' }
+  );
+  return `Bearer ${token}`;
+};
 
 module.exports = db;

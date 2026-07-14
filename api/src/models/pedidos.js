@@ -7,6 +7,8 @@ const {
   ensureText,
   fetchById,
   newId,
+  normalizeText,
+  nowLocalSql,
 } = require('./_utils');
 
 const ESTADOS_PEDIDO = ['abierto', 'enviado', 'listo', 'pagado', 'cancelado'];
@@ -129,12 +131,13 @@ function create(data) {
   const createPedidoTransaction = db.transaction((payload) => {
     const pedidoId = newId();
 
-    db.prepare('INSERT INTO pedidos (id, mesa_id, usuario_id, caja_id, estado) VALUES (?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO pedidos (id, mesa_id, usuario_id, caja_id, estado, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       pedidoId,
       payload.mesaId,
       payload.usuarioId,
       payload.cajaId,
-      'abierto'
+      'abierto',
+      nowLocalSql()
     );
 
     for (const item of payload.items) {
@@ -148,10 +151,11 @@ function create(data) {
       const precioUnitario = item.precio_unitario !== undefined
         ? ensureNonNegative(item.precio_unitario, 'El precio unitario del item')
         : Number(variante.precio);
+      const nota = normalizeText(item.nota);
 
       db.prepare(
-        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(newId(), pedidoId, varianteId, cantidad, precioUnitario, 'pendiente');
+        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado, nota) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(newId(), pedidoId, varianteId, cantidad, precioUnitario, 'pendiente', nota);
     }
 
     return getPedidoConItems(pedidoId);
@@ -248,10 +252,11 @@ function replaceItems(id, items) {
       const precioUnitario = item.precio_unitario !== undefined
         ? ensureNonNegative(item.precio_unitario, 'El precio unitario del item')
         : Number(variante.precio);
+      const nota = normalizeText(item.nota);
 
       db.prepare(
-        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(newId(), payload.id, varianteId, cantidad, precioUnitario, 'pendiente');
+        'INSERT INTO items_pedido (id, pedido_id, variante_id, cantidad, precio_unitario, estado, nota) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(newId(), payload.id, varianteId, cantidad, precioUnitario, 'pendiente', nota);
     }
 
     return getPedidoConItems(payload.id);

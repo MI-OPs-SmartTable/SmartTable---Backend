@@ -1,5 +1,5 @@
 const db = require('../database/db');
-const { ensureCajaAbierta, ensureExists, ensureNonNegative, ensureText, fetchById, newId } = require('./_utils');
+const { ensureCajaAbierta, ensureExists, ensureNonNegative, ensureText, fetchById, newId, nowLocalSql } = require('./_utils');
 
 function getAll() {
   return db.prepare('SELECT * FROM gastos_caja ORDER BY created_at DESC').all();
@@ -25,13 +25,14 @@ function create(data) {
   const categoria = ensureText(data.categoria, 'La categoría del gasto');
 
   const id = newId();
-  db.prepare('INSERT INTO gastos_caja (id, caja_id, usuario_id, monto, descripcion, categoria, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))').run(
+  db.prepare('INSERT INTO gastos_caja (id, caja_id, usuario_id, monto, descripcion, categoria, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
     id,
     cajaId,
     usuarioId,
     monto,
     descripcion,
-    categoria
+    categoria,
+    nowLocalSql()
   );
 
   return getById(id);

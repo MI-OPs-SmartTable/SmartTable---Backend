@@ -11,11 +11,19 @@ function isMissing(value) {
 }
 
 function handleError(res, err) {
-  if (String(err.message || '').toLowerCase().includes('no encontrado')) {
+  const message = String(err.message || '');
+  if (message.toLowerCase().includes('no encontrado')) {
     return res.status(404).json({ error: 'No encontrado' });
   }
+  if (
+    message.includes('obligatorio') ||
+    message.includes('debe ser') ||
+    message.includes('debe ser un número')
+  ) {
+    return res.status(400).json({ error: message });
+  }
 
-  return res.status(500).json({ error: err.message });
+  return res.status(500).json({ error: message });
 }
 
 router.get('/', auth, readRoles, (req, res) => {
@@ -29,6 +37,34 @@ router.get('/', auth, readRoles, (req, res) => {
 router.get('/stock-bajo', auth, readRoles, (req, res) => {
   try {
     return res.status(200).json(insumos.getInsumosConStockBajo());
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.get('/resumen', auth, readRoles, (req, res) => {
+  try {
+    return res.status(200).json(insumos.getResumenInventario());
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.get('/:id/compras', auth, readRoles, (req, res) => {
+  try {
+    return res.status(200).json(insumos.listCompras(req.params.id));
+  } catch (err) {
+    return handleError(res, err);
+  }
+});
+
+router.post('/:id/compras', auth, writeRoles, (req, res) => {
+  try {
+    if (isMissing(req.body?.tipo)) return res.status(400).json({ error: 'Campo tipo requerido' });
+    if (req.body?.cantidad === undefined || req.body?.cantidad === null) {
+      return res.status(400).json({ error: 'Campo cantidad requerido' });
+    }
+    return res.status(201).json(insumos.registrarMovimiento(req.params.id, req.body));
   } catch (err) {
     return handleError(res, err);
   }

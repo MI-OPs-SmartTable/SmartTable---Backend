@@ -22,6 +22,11 @@ process.env.JWT_SECRET = environment === 'PRODUCTION'
   ? process.env.JWT_SECRET_PRODUCTION || process.env.JWT_SECRET
   : process.env.JWT_SECRET_DEVELOPMENT || process.env.JWT_SECRET;
 
+console.log(`[env] SmartTable backend en modo ${process.env.environment}`);
+if (process.env.NODE_ENV !== 'production') {
+  console.warn('[env] DEVELOPMENT activo: algunas rutas tienen permisos más flexibles para pruebas locales.');
+}
+
 const express = require('express');
 const cors = require('cors');
 const logger = require('./middlewares/logger');
@@ -38,12 +43,41 @@ function parseCorsOrigins(value) {
     .filter(Boolean);
 }
 
+function isLanOrLocalOrigin(origin) {
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+      return true;
+    }
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function isTryCloudflareOrigin(origin) {
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'trycloudflare.com' || hostname.endsWith('.trycloudflare.com');
+  } catch {
+    return false;
+  }
+}
+
 const corsOrigins = parseCorsOrigins(process.env.CORS_ORIGIN || 'http://localhost:3030,http://localhost:5173');
 
 app.use(logger);
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || corsOrigins.includes(origin)) {
+    if (
+      !origin ||
+      corsOrigins.includes(origin) ||
+      isLanOrLocalOrigin(origin) ||
+      isTryCloudflareOrigin(origin)
+    ) {
       return callback(null, true);
     }
 
@@ -77,6 +111,7 @@ app.use('/api/proveedores', require('./routes/proveedores'));
 app.use('/api/categorias', require('./routes/categorias'));
 app.use('/api/insumos', require('./routes/insumos'));
 app.use('/api/productos', require('./routes/productos'));
+app.use('/api/importacion', require('./routes/importacion'));
 app.use('/api/variantes', require('./routes/variantes'));
 app.use('/api/recetas', require('./routes/recetas'));
 app.use('/api/ubicaciones', require('./routes/ubicaciones'));
@@ -88,6 +123,9 @@ app.use('/api/items-pedido', require('./routes/items_pedido'));
 app.use('/api/medios-pago-transferencia', require('./routes/medios_pago_transferencia'));
 app.use('/api/ventas', require('./routes/ventas'));
 app.use('/api/gastos-caja', require('./routes/gastos_caja'));
+app.use('/api/reportes', require('./routes/reportes'));
+app.use('/api/backup', require('./routes/backup'));
+app.use('/api/events', require('./routes/events'));
 
 const frontendDist = process.env.FRONTEND_DIST;
 if (frontendDist) {

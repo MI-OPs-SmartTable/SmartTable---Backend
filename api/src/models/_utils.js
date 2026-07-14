@@ -4,6 +4,13 @@ function newId() {
   return randomUUID().replace(/-/g, '').toLowerCase();
 }
 
+/** Fecha/hora local del sistema en formato SQLite: YYYY-MM-DD HH:MM:SS */
+function nowLocalSql(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = date instanceof Date ? date : new Date(date);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 function entityNotFound(entityName, id) {
   return new Error(entityName + ' no encontrado: ' + id);
 }
@@ -110,4 +117,5 @@ module.exports = {
   fetchById,
   newId,
   normalizeText,
+  nowLocalSql,
 };

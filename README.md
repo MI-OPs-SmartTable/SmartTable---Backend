@@ -49,10 +49,62 @@ environment=PRODUCTION
 
 Según ese valor, la app toma automáticamente el secreto correspondiente desde `JWT_SECRET_DEVELOPMENT` o `JWT_SECRET_PRODUCTION` y también ajusta `NODE_ENV` para mantener compatibilidad con el resto del código.
 
+### Notas de entorno (dev/prod)
+
+- Algunas rutas tienen permisos distintos entre desarrollo y producción.
+- En producción se exige autenticación/rol en endpoints sensibles y ciertas operaciones quedan bloqueadas.
+- Para evitar comportamientos inesperados, define explícitamente `environment=DEVELOPMENT` en local y `environment=PRODUCTION` en despliegues.
+
 Si tu frontend corre en otro puerto u host, define también `CORS_ORIGIN` para autorizar uno o varios orígenes separados por comas. Por defecto el backend permite `http://localhost:3030` y `http://localhost:5173`.
 
 ```env
 CORS_ORIGIN=http://localhost:3030,http://localhost:5173
+```
+
+## Respaldo automático de la base de datos
+
+El backend incluye un servicio que crea copias de seguridad de SQLite de forma periódica. Se inicia automáticamente al levantar el servidor (`npm start`).
+
+### Comportamiento
+
+- Crea un respaldo seguro con `better-sqlite3` (compatible con modo `WAL`).
+- Comprime el archivo como `.db.gz`.
+- Usa siempre el mismo nombre de archivo y lo sobrescribe localmente en cada ciclo.
+- Por defecto guarda la copia en una carpeta `backups/` junto al archivo de la base de datos (`pos.db`).
+- Opcionalmente sube el mismo archivo a Google Drive, actualizándolo si ya existe.
+
+### Configuración
+
+La configuración del respaldo se gestiona desde la app, en **Configuración → Respaldo** (solo admin). Se guarda en `backup-config.json` junto a la base de datos.
+
+En la app de escritorio (Electron), eso queda en la carpeta de datos del usuario (`AppData`), no en la carpeta de instalación.
+
+### Configurar Google Drive
+
+OAuth con cliente **quemado en la app** (del proveedor). El cliente solo pega el ID de carpeta y autoriza su Gmail.
+
+**Proveedor (una vez):**
+1. Crea el proyecto OAuth en [Google Cloud Console](https://console.cloud.google.com/).
+2. Publica la app en producción (para no depender de usuarios de prueba).
+3. Pon en el `.env` (Frontend y/o Backend, Electron los pasa al proceso):
+   - `GOOGLE_OAUTH_CLIENT_ID`
+   - `GOOGLE_OAUTH_CLIENT_SECRET`
+4. URI de redirección: `http://127.0.0.1:8080/api/backup/oauth/callback`
+5. Crea la carpeta en tu Drive, compártela con el Gmail del cliente (Editor) y envíale el ID.
+
+**Cliente (en la app):**
+1. Pega el ID de carpeta.
+2. Pulsa **Conectar con Google** con su Gmail.
+3. Activa Drive y **Guardar configuración**.
+
+Las cuentas de servicio solo funcionan con **unidades compartidas** de Google Workspace.
+
+### Ejecución manual
+
+Para probar un respaldo sin esperar al intervalo:
+
+```bash
+npm run backup:run
 ```
 
 ## Documentacion Swagger
@@ -78,7 +130,7 @@ El endpoint de autenticación ahora utiliza el nombre completo del usuario en lu
 
 ```json
 {
-	"nombre_completo": "Admin Principal Lina",
+	"nombre_completo": "Administrador",
 	"pin": "1234"
 }
 ```
@@ -90,7 +142,7 @@ El endpoint de autenticación ahora utiliza el nombre completo del usuario en lu
 {
 	"token": "eyJ...",
 	"usuario": {
-		"nombre_completo": "Admin Principal Lina",
+		"nombre_completo": "Administrador",
 		"rol": "admin"
 	}
 }
@@ -100,6 +152,10 @@ El endpoint de autenticación ahora utiliza el nombre completo del usuario en lu
 	- `401` — Credenciales inválidas: `{ "error": "Credenciales inválidas" }`.
 
 - Notas:
-	- El servidor espera que `nombre_completo` identifique al usuario; si tu base de datos permite duplicados, considera usar un identificador único (como `email` o `username`).
+	- El login usa `nombre_completo`; ahora el backend evita crear/editar usuarios activos con nombres duplicados para evitar ambigüedad.
 	- El JWT se firma con la variable de entorno `JWT_SECRET` y su expiración puede establecerse con `JWT_EXPIRES_IN` (por defecto `8h`).
+
+## Observación de codificación
+
+Si en tu editor algunos acentos se ven raros, revisa que el archivo esté en UTF-8. Eso no cambia la lógica del backend.
 

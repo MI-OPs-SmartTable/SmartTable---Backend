@@ -2,6 +2,7 @@ const router = require('express').Router();
 const auth = require('../middlewares/auth');
 const { requireRol } = auth;
 const sesiones = require('../models/sesiones');
+const cajas = require('../models/cajas');
 
 function isMissing(value) {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
@@ -45,6 +46,15 @@ router.post('/iniciar', (req, res) => {
 
 router.post('/:id/cerrar', (req, res) => {
   try {
+    const sesion = sesiones.getById(req.params.id);
+    const caja = cajas.getById(sesion.caja_id);
+
+    if (caja.usuario_id !== req.usuario.id) {
+      return res.status(403).json({
+        error: 'Solo quien abrió la caja puede quitar colaboradores',
+      });
+    }
+
     return res.status(200).json(sesiones.cerrarSesion(req.params.id, req.body || {}));
   } catch (err) {
     return handleError(res, err);

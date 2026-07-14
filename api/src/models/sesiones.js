@@ -1,5 +1,5 @@
 const db = require('../database/db');
-const { ensureCajaAbierta, ensureExists, ensureText, fetchById, newId } = require('./_utils');
+const { ensureCajaAbierta, ensureExists, ensureText, fetchById, newId, nowLocalSql } = require('./_utils');
 
 function getAll() {
   return db.prepare('SELECT * FROM sesiones ORDER BY inicio_at DESC').all();
@@ -72,7 +72,7 @@ function ensureUsuarioSinSesionActiva(usuarioId) {
 function abrirTitular(data) {
   const usuarioId = ensureText(data.usuario_id, 'El usuario_id de la sesión');
   const cajaId = ensureText(data.caja_id, 'El caja_id de la sesión');
-  const inicioAt = data.inicio_at ? String(data.inicio_at).trim() : new Date().toISOString();
+  const inicioAt = data.inicio_at ? String(data.inicio_at).trim() : nowLocalSql();
 
   ensureExists(db, 'usuarios', usuarioId, 'Usuario');
   ensureCajaAbierta(db, cajaId);
@@ -96,7 +96,7 @@ function abrirTitular(data) {
 function agregarColaborador(cajaId, usuarioId, data) {
   const cajaIdText = ensureText(cajaId, 'El caja_id de la sesión');
   const usuarioIdText = ensureText(usuarioId, 'El usuario_id de la sesión');
-  const inicioAt = data && data.inicio_at ? String(data.inicio_at).trim() : new Date().toISOString();
+  const inicioAt = data && data.inicio_at ? String(data.inicio_at).trim() : nowLocalSql();
 
   ensureExists(db, 'usuarios', usuarioIdText, 'Usuario');
   ensureCajaAbierta(db, cajaIdText);
@@ -119,7 +119,7 @@ function agregarColaborador(cajaId, usuarioId, data) {
 
 function cerrarSesion(id, data) {
   const current = getById(id);
-  const finAt = data && data.fin_at !== undefined ? String(data.fin_at).trim() : new Date().toISOString();
+  const finAt = data && data.fin_at !== undefined ? String(data.fin_at).trim() : nowLocalSql();
 
   db.prepare('UPDATE sesiones SET fin_at = ? WHERE id = ?').run(finAt, id);
   return getById(id);
@@ -127,7 +127,7 @@ function cerrarSesion(id, data) {
 
 function cerrarPorCaja(cajaId, finAt) {
   const cajaIdText = ensureText(cajaId, 'El caja_id de la sesión');
-  const cierreAt = finAt !== undefined && finAt !== null ? String(finAt).trim() : new Date().toISOString();
+  const cierreAt = finAt !== undefined && finAt !== null ? String(finAt).trim() : nowLocalSql();
 
   db.prepare('UPDATE sesiones SET fin_at = ? WHERE caja_id = ? AND fin_at IS NULL').run(cierreAt, cajaIdText);
   return getActivasByCaja(cajaIdText);

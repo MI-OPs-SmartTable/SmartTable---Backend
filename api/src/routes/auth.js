@@ -2,9 +2,17 @@ const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 const db = require('../database/db');
 const auth = require('../middlewares/auth');
+const authSesiones = require('../models/auth_sesiones');
 const cajas = require('../models/cajas');
 const sesiones = require('../models/sesiones');
 const { verifyPin } = require('../middlewares/hashPin');
+
+function parseExpiresInSeconds(expiresIn) {
+  if (typeof expiresIn === 'string' && expiresIn.endsWith('h')) {
+    return Number.parseInt(expiresIn, 10) * 3600;
+  }
+  return 28800;
+}
 
 router.get('/usuarios', (req, res) => {
   try {
@@ -24,13 +32,26 @@ router.get('/usuarios', (req, res) => {
 
 router.post('/login', (req, res) => {
   try {
-    const { nombre_completo, pin } = req.body || {};
+    const { nombre_completo, pin, forzar_cierre } = req.body || {};
 
     if (nombre_completo === undefined || nombre_completo === null || nombre_completo === '' || pin === undefined || pin === null || pin === '') {
       return res.status(400).json({ error: 'nombre_completo y pin requeridos' });
     }
 
-    const usuario = db.prepare('SELECT * FROM usuarios WHERE nombre_completo = ?').get(nombre_completo);
+    const matches = db.prepare(`
+      SELECT *
+      FROM usuarios
+      WHERE nombre_completo = ? AND activo = 1
+      ORDER BY created_at ASC
+    `).all(nombre_completo);
+
+    if (matches.length > 1) {
+      return res.status(409).json({
+        error: 'Hay más de un usuario activo con ese nombre_completo. Use un identificador único.',
+      });
+    }
+
+    const usuario = matches[0];
 
     if (!usuario || usuario.activo === 0) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
@@ -40,6 +61,19 @@ router.post('/login', (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
+    const sesionActiva = authSesiones.getActivaByUsuario(usuario.id);
+    if (sesionActiva && !forzar_cierre) {
+      return res.status(409).json({
+        error: 'Este usuario ya tiene una sesión activa en otro dispositivo. Debe cerrar sesión allí o forzar el cierre aquí.',
+        code: 'SESSION_ACTIVE_ELSEWHERE',
+        puede_forzar: true,
+      });
+    }
+
+    if (sesionActiva && forzar_cierre) {
+      authSesiones.revocarActivasPorUsuario(usuario.id);
+    }
+
     const rol = db.prepare(`
       SELECT r.nombre AS rol
       FROM roles r
@@ -47,10 +81,19 @@ router.post('/login', (req, res) => {
       WHERE u.id = ?
     `).get(usuario.id);
 
+    const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
+    const expiresInSeconds = parseExpiresInSeconds(expiresIn);
+    const deviceLabel = String(req.headers['user-agent'] || '').slice(0, 200) || null;
+    const authSesion = authSesiones.crear({
+      usuarioId: usuario.id,
+      expiresInSeconds,
+      deviceLabel,
+    });
+
     const token = jwt.sign(
-      { id: usuario.id, rol: rol.rol },
+      { id: usuario.id, rol: rol.rol, jti: authSesion.id },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+      { expiresIn }
     );
 
     const usuarioAutenticado = db.prepare(`
@@ -59,11 +102,6 @@ router.post('/login', (req, res) => {
       INNER JOIN roles r ON r.id = u.rol_id
       WHERE u.id = ?
     `).get(usuario.id);
-
-    const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
-    const expiresInSeconds = typeof expiresIn === 'string' && expiresIn.endsWith('h')
-      ? Number.parseInt(expiresIn, 10) * 3600
-      : 28800;
 
     return res.status(200).json({
       token,
@@ -81,6 +119,12 @@ router.post('/login', (req, res) => {
 
 router.post('/logout', auth, (req, res) => {
   try {
+    if (req.authSesionId) {
+      authSesiones.revocar(req.authSesionId);
+    } else {
+      authSesiones.revocarActivasPorUsuario(req.usuario.id);
+    }
+
     const cajaAbierta = cajas.getCajaAbierta(req.usuario.id);
     if (cajaAbierta) {
       const cajaCerrada = cajas.cerrar(cajaAbierta.id, {});

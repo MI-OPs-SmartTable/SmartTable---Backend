@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../database/db');
+const authSesiones = require('../models/auth_sesiones');
 
 function auth(req, res, next) {
   try {
@@ -27,6 +28,14 @@ function auth(req, res, next) {
       return res.status(401).json({ error: 'Token inválido o expirado' });
     }
 
+    const authSesionId = payload.jti || payload.jwtid || null;
+    if (!authSesionId || !authSesiones.isActiva(authSesionId)) {
+      return res.status(401).json({
+        error: 'Sesión cerrada o iniciada en otro dispositivo. Inicie sesión nuevamente.',
+        code: 'SESSION_REVOKED',
+      });
+    }
+
     const usuario = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(payload.id);
 
     if (!usuario || usuario.activo === 0) {
@@ -39,6 +48,7 @@ function auth(req, res, next) {
       return res.status(401).json({ error: 'Usuario no válido' });
     }
 
+    req.authSesionId = authSesionId;
     req.usuario = {
       id: usuario.id,
       rol_id: usuario.rol_id,

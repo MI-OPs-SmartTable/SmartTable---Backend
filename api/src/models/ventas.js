@@ -1,15 +1,109 @@
 const db = require('../database/db');
-const { ensureActive, ensureCajaAbierta, ensureNonNegative, ensureText, fetchById, normalizeText, newId } = require('./_utils');
+const { ensureActive, ensureCajaAbierta, ensureNonNegative, ensureText, normalizeText, newId, nowLocalSql } = require('./_utils');
 const sesiones = require('./sesiones');
 
 const METODOS_PAGO = ['efectivo', 'transferencia', 'mixto'];
 
+function mapItemsByPedido(pedidoIds) {
+  const byPedido = new Map();
+  if (!pedidoIds.length) return byPedido;
+
+  const placeholders = pedidoIds.map(() => '?').join(', ');
+  const items = db.prepare(`
+    SELECT
+      ip.pedido_id,
+      ip.id,
+      ip.variante_id,
+      ip.cantidad,
+      ip.precio_unitario,
+      ip.estado,
+      vp.nombre AS variante_nombre,
+      pr.nombre AS producto_nombre
+    FROM items_pedido ip
+    INNER JOIN variantes_producto vp ON vp.id = ip.variante_id
+    INNER JOIN productos pr ON pr.id = vp.producto_id
+    WHERE ip.pedido_id IN (${placeholders})
+      AND ip.estado != 'cancelado'
+    ORDER BY ip.id
+  `).all(...pedidoIds);
+
+  for (const item of items) {
+    if (!byPedido.has(item.pedido_id)) {
+      byPedido.set(item.pedido_id, []);
+    }
+    byPedido.get(item.pedido_id).push({
+      id: item.id,
+      variante_id: item.variante_id,
+      cantidad: Number(item.cantidad),
+      precio_unitario: Number(item.precio_unitario),
+      estado: item.estado,
+      variante_nombre: item.variante_nombre,
+      producto_nombre: item.producto_nombre,
+      subtotal: Number(item.cantidad) * Number(item.precio_unitario),
+    });
+  }
+
+  return byPedido;
+}
+
+function enrichVenta(venta) {
+  if (!venta) return venta;
+
+  const itemsByPedido = mapItemsByPedido([venta.pedido_id]);
+  return {
+    ...venta,
+    items: itemsByPedido.get(venta.pedido_id) || [],
+  };
+}
+
 function getAll() {
-  return db.prepare('SELECT * FROM ventas ORDER BY pagado_at DESC').all();
+  const ventas = db.prepare(`
+    SELECT
+      v.*,
+      p.mesa_id,
+      m.nombre AS mesa_nombre,
+      u.nombre AS ubicacion_nombre
+    FROM ventas v
+    INNER JOIN pedidos p ON p.id = v.pedido_id
+    LEFT JOIN mesas m ON m.id = p.mesa_id
+    LEFT JOIN ubicaciones u ON u.id = m.ubicacion_id
+    ORDER BY v.pagado_at DESC
+  `).all();
+
+  if (ventas.length === 0) return [];
+
+  const itemsByPedido = mapItemsByPedido([...new Set(ventas.map((venta) => venta.pedido_id))]);
+
+  return ventas.map((venta) => ({
+    ...venta,
+    items: itemsByPedido.get(venta.pedido_id) || [],
+  }));
 }
 
 function getById(id) {
-  return fetchById(db, 'ventas', id, 'Venta');
+  const venta = db.prepare(`
+    SELECT
+      v.*,
+      p.mesa_id,
+      m.nombre AS mesa_nombre,
+      u.nombre AS ubicacion_nombre
+    FROM ventas v
+    INNER JOIN pedidos p ON p.id = v.pedido_id
+    LEFT JOIN mesas m ON m.id = p.mesa_id
+    LEFT JOIN ubicaciones u ON u.id = m.ubicacion_id
+    WHERE v.id = ?
+  `).get(id);
+
+  if (!venta) {
+    throw new Error('Venta no encontrado: ' + id);
+  }
+
+  return enrichVenta(venta);
+}
+
+function getByCaja(cajaId) {
+  ensureText(cajaId, 'El caja_id');
+  return getAll().filter((venta) => venta.caja_id === cajaId);
 }
 
 function create(data) {
@@ -102,7 +196,7 @@ function create(data) {
     const ventaId = newId();
 
     db.prepare(
-      'INSERT INTO ventas (id, pedido_id, caja_id, usuario_cobro_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime(\'now\'))'
+      'INSERT INTO ventas (id, pedido_id, caja_id, usuario_cobro_id, total, monto_efectivo, monto_transferencia, medio_transferencia_id, comentario, metodo_pago, pagado_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       ventaId,
       payload.pedidoId,
@@ -113,7 +207,8 @@ function create(data) {
       payload.montoTransferencia,
       payload.medioTransferenciaId,
       payload.comentario,
-      payload.metodoPago
+      payload.metodoPago,
+      nowLocalSql()
     );
 
     db.prepare('UPDATE pedidos SET estado = ? WHERE id = ?').run('pagado', payload.pedidoId);
@@ -134,4 +229,4 @@ function create(data) {
   });
 }
 
-module.exports = { create, getAll, getById };
+module.exports = { create, getAll, getByCaja, getById };

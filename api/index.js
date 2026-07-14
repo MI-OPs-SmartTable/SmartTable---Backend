@@ -2,6 +2,7 @@ const app = require('./src/app');
 const db = require('./src/database/db');
 const { runMigrations } = require('./src/database/migrations');
 const { runSeeds } = require('./src/database/seeds');
+const { startBackupScheduler } = require('./src/services/backup/scheduler');
 
 function seedIfEmpty() {
   const { total } = db.prepare('SELECT COUNT(*) AS total FROM usuarios').get();
@@ -23,6 +24,7 @@ function startServer(port = process.env.PORT || 8080) {
 
   const server = app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
+    startBackupScheduler();
   });
 
   return server;

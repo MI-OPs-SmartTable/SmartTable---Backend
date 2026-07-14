@@ -20,7 +20,8 @@ const ROUTE_DEFINITIONS = [
   { basePath: '/api/items-pedido', routeFile: 'items_pedido.js', tag: 'ItemsPedido' },
   { basePath: '/api/medios-pago-transferencia', routeFile: 'medios_pago_transferencia.js', tag: 'MediosPagoTransferencia' },
   { basePath: '/api/ventas', routeFile: 'ventas.js', tag: 'Ventas' },
-  { basePath: '/api/gastos-caja', routeFile: 'gastos_caja.js', tag: 'GastosCaja' }
+  { basePath: '/api/gastos-caja', routeFile: 'gastos_caja.js', tag: 'GastosCaja' },
+  { basePath: '/api/reportes', routeFile: 'reportes.js', tag: 'Reportes' }
 ];
 
 function joinPaths(basePath, routePath) {
@@ -654,7 +655,8 @@ function buildOperation(method, openApiPath, tag) {
                   properties: {
                     variante_id: { type: 'string', example: 'variante_123' },
                     cantidad: { type: 'number', minimum: 0.0001, example: 1 },
-                    precio_unitario: { type: 'number', minimum: 0, nullable: true, example: 3500 }
+                    precio_unitario: { type: 'number', minimum: 0, nullable: true, example: 3500 },
+                    nota: { type: 'string', nullable: true, example: 'Sin cebolla' }
                   }
                 }
               }
@@ -686,6 +688,257 @@ function buildOperation(method, openApiPath, tag) {
       401: { description: 'Autenticacion requerida' },
       403: { description: 'No autorizado' },
       409: { description: 'El usuario no tiene una sesion de caja activa' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/top-productos')) {
+    operation.summary = 'Productos más vendidos';
+    operation.description = 'Devuelve el ranking de productos más vendidos (por cantidad) calculado sobre ventas ya pagadas. Permite filtrar por periodo (semana/mes) relativo a una fecha de referencia, o por un rango de fechas explícito (desde/hasta). Solo disponible para admin.';
+    operation.parameters = [
+      {
+        name: 'periodo',
+        in: 'query',
+        required: false,
+        description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.',
+        schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' }
+      },
+      {
+        name: 'fecha',
+        in: 'query',
+        required: false,
+        description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.',
+        schema: { type: 'string', example: '2026-07-10' }
+      },
+      {
+        name: 'desde',
+        in: 'query',
+        required: false,
+        description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.',
+        schema: { type: 'string', example: '2026-07-01' }
+      },
+      {
+        name: 'hasta',
+        in: 'query',
+        required: false,
+        description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.',
+        schema: { type: 'string', example: '2026-07-10' }
+      },
+      {
+        name: 'limite',
+        in: 'query',
+        required: false,
+        description: 'Cantidad de productos a devolver (top N). Por defecto 5.',
+        schema: { type: 'integer', minimum: 1, maximum: 50, default: 5 }
+      }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Ranking de productos más vendidos',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                periodo: { type: 'string', example: 'mes' },
+                desde: { type: 'string', example: '2026-07-01 00:00:00' },
+                hasta: { type: 'string', example: '2026-07-31 23:59:59' },
+                productos: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      producto_id: { type: 'string' },
+                      producto: { type: 'string', example: 'Café' },
+                      cantidad_vendida: { type: 'number', example: 42 },
+                      total_vendido: { type: 'number', example: 176400 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha o límite)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/ventas-resumen')) {
+    operation.summary = 'Resumen de ventas';
+    operation.description = 'Devuelve la cantidad e importe total de ventas pagadas en un periodo (semana/mes) o rango de fechas, desglosado por medio de pago. Solo disponible para admin.';
+    operation.parameters = [
+      { name: 'periodo', in: 'query', required: false, description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.', schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' } },
+      { name: 'fecha', in: 'query', required: false, description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'desde', in: 'query', required: false, description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.', schema: { type: 'string', example: '2026-07-01' } },
+      { name: 'hasta', in: 'query', required: false, description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.', schema: { type: 'string', example: '2026-07-10' } }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Resumen de ventas del periodo',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                periodo: { type: 'string', example: 'mes' },
+                desde: { type: 'string', example: '2026-07-01 00:00:00' },
+                hasta: { type: 'string', example: '2026-07-31 23:59:59' },
+                cantidad_ventas: { type: 'number', example: 120 },
+                total_ventas: { type: 'number', example: 3500000 },
+                total_efectivo: { type: 'number', example: 2000000 },
+                total_transferencia: { type: 'number', example: 1500000 }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha o rango)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/gastos-resumen')) {
+    operation.summary = 'Resumen de gastos de caja';
+    operation.description = 'Devuelve la cantidad e importe total de gastos de caja registrados en un periodo (semana/mes) o rango de fechas. Solo disponible para admin.';
+    operation.parameters = [
+      { name: 'periodo', in: 'query', required: false, description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.', schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' } },
+      { name: 'fecha', in: 'query', required: false, description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'desde', in: 'query', required: false, description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.', schema: { type: 'string', example: '2026-07-01' } },
+      { name: 'hasta', in: 'query', required: false, description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.', schema: { type: 'string', example: '2026-07-10' } }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Resumen de gastos del periodo',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                periodo: { type: 'string', example: 'mes' },
+                desde: { type: 'string', example: '2026-07-01 00:00:00' },
+                hasta: { type: 'string', example: '2026-07-31 23:59:59' },
+                cantidad_gastos: { type: 'number', example: 8 },
+                total_gastos: { type: 'number', example: 450000 }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha o rango)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/dashboard')) {
+    operation.summary = 'Resumen consolidado para el dashboard';
+    operation.description = 'Devuelve en una sola respuesta el resumen de ventas, gastos, ingresos netos, el top de productos más vendidos y las alertas de stock bajo, para un periodo (semana/mes) o rango de fechas. Solo disponible para admin.';
+    operation.parameters = [
+      { name: 'periodo', in: 'query', required: false, description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.', schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' } },
+      { name: 'fecha', in: 'query', required: false, description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'desde', in: 'query', required: false, description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.', schema: { type: 'string', example: '2026-07-01' } },
+      { name: 'hasta', in: 'query', required: false, description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'limite', in: 'query', required: false, description: 'Cantidad de productos a incluir en el top (top N). Por defecto 5.', schema: { type: 'integer', minimum: 1, maximum: 50, default: 5 } }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Resumen consolidado del negocio',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                periodo: { type: 'string', example: 'mes' },
+                desde: { type: 'string', example: '2026-07-01 00:00:00' },
+                hasta: { type: 'string', example: '2026-07-31 23:59:59' },
+                ventas: {
+                  type: 'object',
+                  properties: {
+                    cantidad: { type: 'number', example: 120 },
+                    total: { type: 'number', example: 3500000 },
+                    total_efectivo: { type: 'number', example: 2000000 },
+                    total_transferencia: { type: 'number', example: 1500000 }
+                  }
+                },
+                gastos: {
+                  type: 'object',
+                  properties: {
+                    cantidad: { type: 'number', example: 8 },
+                    total: { type: 'number', example: 450000 }
+                  }
+                },
+                ingresos_netos: { type: 'number', example: 3050000 },
+                top_productos: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      producto_id: { type: 'string' },
+                      producto: { type: 'string', example: 'Café' },
+                      cantidad_vendida: { type: 'number', example: 42 },
+                      total_vendido: { type: 'number', example: 176400 }
+                    }
+                  }
+                },
+                stock_bajo: {
+                  type: 'object',
+                  properties: {
+                    cantidad: { type: 'number', example: 2 },
+                    insumos: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          id: { type: 'string' },
+                          nombre: { type: 'string', example: 'Leche' },
+                          cantidad_actual: { type: 'number', example: 300 },
+                          stock_minimo: { type: 'number', example: 1000 }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha, rango o límite)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
+      500: { description: 'Error interno' }
+    };
+  }
+
+  if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/dashboard/excel')) {
+    operation.summary = 'Descargar el reporte del dashboard en Excel';
+    operation.description = 'Genera y descarga un archivo .xlsx con el mismo contenido que /reportes/dashboard: resumen de ventas y gastos, ventas por categoría y por ubicación (ej. Salón Principal, Terraza), top de productos e insumos con stock bajo, para un periodo (semana/mes) o rango de fechas. Solo disponible para admin.';
+    operation.parameters = [
+      { name: 'periodo', in: 'query', required: false, description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.', schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' } },
+      { name: 'fecha', in: 'query', required: false, description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'desde', in: 'query', required: false, description: 'Fecha inicial (YYYY-MM-DD) para un rango personalizado. Requiere enviar también hasta.', schema: { type: 'string', example: '2026-07-01' } },
+      { name: 'hasta', in: 'query', required: false, description: 'Fecha final (YYYY-MM-DD) para un rango personalizado. Requiere enviar también desde.', schema: { type: 'string', example: '2026-07-10' } },
+      { name: 'limite', in: 'query', required: false, description: 'Cantidad de productos a incluir en el top (top N). Por defecto 5.', schema: { type: 'integer', minimum: 1, maximum: 50, default: 5 } }
+    ];
+    operation.responses = {
+      200: {
+        description: 'Archivo Excel (.xlsx) con el reporte consolidado',
+        content: {
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+            schema: { type: 'string', format: 'binary' }
+          }
+        }
+      },
+      400: { description: 'Filtros inválidos (periodo, fecha, rango o límite)' },
+      401: { description: 'Autenticacion requerida' },
+      403: { description: 'No autorizado' },
       500: { description: 'Error interno' }
     };
   }
@@ -869,7 +1122,8 @@ const swaggerDefinition = {
     { name: 'Pedidos' },
     { name: 'ItemsPedido' },
     { name: 'Ventas' },
-    { name: 'GastosCaja' }
+    { name: 'GastosCaja' },
+    { name: 'Reportes' }
   ],
   components: {
     securitySchemes: {
