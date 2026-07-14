@@ -39,12 +39,13 @@ describe('Reportes', () => {
   let adminAuthHeader;
   let cajeroAuthHeader;
 
-  async function crearVentaPagada({ usuarioId, varianteId, cantidad, precioUnitario, pagadoAt }) {
+  async function crearVentaPagada({ usuarioId, varianteId, cantidad, precioUnitario, pagadoAt, mesaId }) {
     const pedidoResponse = await request(app)
       .post('/api/pedidos')
       .set('Authorization', adminAuthHeader)
       .send({
         usuario_id: usuarioId,
+        mesa_id: mesaId,
         items: [{ variante_id: varianteId, cantidad }],
       });
 
@@ -218,6 +219,48 @@ describe('Reportes', () => {
     });
   });
 
+  describe('GET /api/reportes/por-ubicacion', () => {
+    it('debe rechazar el acceso a roles distintos de admin', async () => {
+      const response = await request(app)
+        .get('/api/reportes/por-ubicacion')
+        .set('Authorization', cajeroAuthHeader);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('debe agrupar la cantidad y el total de ventas pagadas por ubicación', async () => {
+      await crearVentaPagada({
+        usuarioId: db.seedData.mariaId,
+        varianteId: db.seedData.cafeNegroId,
+        cantidad: 2,
+        precioUnitario: PRECIOS.cafeNegro,
+        mesaId: db.seedData.mesa2Id,
+      });
+      await crearVentaPagada({
+        usuarioId: db.seedData.mariaId,
+        varianteId: db.seedData.brownieIndividualId,
+        cantidad: 1,
+        precioUnitario: PRECIOS.brownieIndividual,
+        mesaId: db.seedData.mesa3Id,
+      });
+
+      const response = await request(app)
+        .get('/api/reportes/por-ubicacion?periodo=mes')
+        .set('Authorization', adminAuthHeader);
+
+      expect(response.status).toBe(200);
+      expect(response.body.periodo).toBe('mes');
+
+      const salon = response.body.ubicaciones.find((u) => u.ubicacion_id === db.seedData.salonPrincipalId);
+      expect(salon).toEqual(expect.objectContaining({ ubicacion: 'Salón principal', cantidad_ventas: expect.any(Number) }));
+      expect(salon.cantidad_ventas).toBeGreaterThanOrEqual(1);
+
+      const terraza = response.body.ubicaciones.find((u) => u.ubicacion_id === db.seedData.terrazaId);
+      expect(terraza).toEqual(expect.objectContaining({ ubicacion: 'Terraza', cantidad_ventas: expect.any(Number) }));
+      expect(terraza.cantidad_ventas).toBeGreaterThanOrEqual(1);
+    });
+  });
+
   describe('GET /api/reportes/dashboard', () => {
     it('debe rechazar el acceso a roles distintos de admin', async () => {
       const response = await request(app)
@@ -289,6 +332,7 @@ describe('Reportes', () => {
         'Ventas diarias',
         'Top productos',
         'Por categoría',
+        'Por ubicación',
         'Stock bajo',
       ]);
 
@@ -299,6 +343,14 @@ describe('Reportes', () => {
         if (rowNumber > 1) indicadores.push(row.getCell(1).value);
       });
       expect(indicadores).toEqual(expect.arrayContaining(['Total ventas', 'Total gastos', 'Ingresos netos', 'Insumos con stock bajo']));
+
+      const hojaUbicaciones = workbook.getWorksheet('Por ubicación');
+      expect(hojaUbicaciones.getRow(1).getCell(1).value).toBe('Ubicación');
+      const nombresUbicaciones = [];
+      hojaUbicaciones.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) nombresUbicaciones.push(row.getCell(1).value);
+      });
+      expect(nombresUbicaciones).toContain('Salón principal');
 
       const hojaStockBajo = workbook.getWorksheet('Stock bajo');
       const nombresInsumos = [];

@@ -919,7 +919,7 @@ function buildOperation(method, openApiPath, tag) {
 
   if (tag === 'Reportes' && method === 'get' && openApiPath.endsWith('/dashboard/excel')) {
     operation.summary = 'Descargar el reporte del dashboard en Excel';
-    operation.description = 'Genera y descarga un archivo .xlsx con el mismo contenido que /reportes/dashboard: resumen de ventas y gastos, top de productos e insumos con stock bajo, para un periodo (semana/mes) o rango de fechas. Solo disponible para admin.';
+    operation.description = 'Genera y descarga un archivo .xlsx con el mismo contenido que /reportes/dashboard: resumen de ventas y gastos, ventas por categoría y por ubicación (ej. Salón Principal, Terraza), top de productos e insumos con stock bajo, para un periodo (semana/mes) o rango de fechas. Solo disponible para admin.';
     operation.parameters = [
       { name: 'periodo', in: 'query', required: false, description: 'Periodo relativo a filtrar. Se ignora si se envían desde/hasta.', schema: { type: 'string', enum: ['semana', 'mes'], default: 'mes' } },
       { name: 'fecha', in: 'query', required: false, description: 'Fecha de referencia (YYYY-MM-DD) dentro de la semana/mes a consultar. Por defecto, hoy.', schema: { type: 'string', example: '2026-07-10' } },

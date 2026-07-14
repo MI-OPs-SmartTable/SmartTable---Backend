@@ -255,6 +255,41 @@ function getVentasPorCategoria(filtros = {}) {
   };
 }
 
+// Ventas agrupadas por ubicación (ej. Salón Principal, Terraza) en un rango de fechas.
+// Los pedidos sin mesa asignada (mesa_id null) se agrupan como "Sin ubicación".
+function getVentasPorUbicacion(filtros = {}) {
+  const { desde, hasta, periodo } = resolveRango(filtros);
+  const desdeSql = toSqlDateTime(desde);
+  const hastaSql = toSqlDateTime(hasta);
+
+  const filas = db.prepare(`
+    SELECT
+      u.id AS ubicacion_id,
+      COALESCE(u.nombre, 'Sin ubicación') AS ubicacion,
+      COUNT(*) AS cantidad_ventas,
+      COALESCE(SUM(v.total), 0) AS total_vendido
+    FROM ventas v
+    INNER JOIN pedidos p ON p.id = v.pedido_id
+    LEFT JOIN mesas m ON m.id = p.mesa_id
+    LEFT JOIN ubicaciones u ON u.id = m.ubicacion_id
+    WHERE v.pagado_at >= ? AND v.pagado_at < ?
+    GROUP BY u.id, u.nombre
+    ORDER BY cantidad_ventas DESC, total_vendido DESC
+  `).all(desdeSql, hastaSql);
+
+  return {
+    periodo,
+    desde: desdeSql,
+    hasta: toSqlDateTime(new Date(hasta.getTime() - 1000)),
+    ubicaciones: filas.map((row) => ({
+      ubicacion_id: row.ubicacion_id,
+      ubicacion: row.ubicacion,
+      cantidad_ventas: Number(row.cantidad_ventas),
+      total_vendido: Number(row.total_vendido),
+    })),
+  };
+}
+
 // Resumen consolidado para el dashboard: ventas, gastos, top productos y alertas de stock bajo.
 function getResumenDashboard(filtros = {}) {
   const ventas = getResumenVentas(filtros);
@@ -262,6 +297,7 @@ function getResumenDashboard(filtros = {}) {
   const topProductos = getTopProductosVendidos({ ...filtros, limite: filtros.limite ?? 5 });
   const ventasDiarias = getVentasDiarias(filtros);
   const porCategoria = getVentasPorCategoria(filtros);
+  const porUbicacion = getVentasPorUbicacion(filtros);
   const insumosConStockBajo = insumos.getInsumosConStockBajo();
 
   return {
@@ -284,6 +320,7 @@ function getResumenDashboard(filtros = {}) {
     ingresos_netos: ventas.total_ventas - gastos.total_gastos,
     ventas_diarias: ventasDiarias.dias,
     por_categoria: porCategoria.categorias,
+    por_ubicacion: porUbicacion.ubicaciones,
     top_productos: topProductos.productos,
     stock_bajo: {
       cantidad: insumosConStockBajo.length,
@@ -368,6 +405,19 @@ async function generarReporteExcel(filtros = {}) {
   })));
   hojaCategorias.getRow(1).font = { bold: true };
 
+  const hojaUbicaciones = workbook.addWorksheet('Por ubicación');
+  hojaUbicaciones.columns = [
+    { header: 'Ubicación', key: 'ubicacion', width: 28 },
+    { header: 'Cantidad de ventas', key: 'cantidad_ventas', width: 20 },
+    { header: 'Total vendido', key: 'total_vendido', width: 20 },
+  ];
+  hojaUbicaciones.addRows(resumen.por_ubicacion.map((u) => ({
+    ubicacion: u.ubicacion,
+    cantidad_ventas: u.cantidad_ventas,
+    total_vendido: formatMoneda(u.total_vendido),
+  })));
+  hojaUbicaciones.getRow(1).font = { bold: true };
+
   const hojaStockBajo = workbook.addWorksheet('Stock bajo');
   hojaStockBajo.columns = [
     { header: 'Insumo', key: 'nombre', width: 30 },
@@ -397,4 +447,5 @@ module.exports = {
   getTopProductosVendidos,
   getVentasDiarias,
   getVentasPorCategoria,
+  getVentasPorUbicacion,
 };
