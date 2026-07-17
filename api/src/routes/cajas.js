@@ -53,23 +53,32 @@ function agregarAdminsComoColaboradores(cajaId) {
   }
 }
 
-router.use(auth, requireRol('admin', 'cajero'));
-
-router.get('/', (req, res) => {
+/**
+ * Se resuelve por sesión activa (titular o colaborador), no por titularidad de la caja,
+ * para que un mesero agregado como colaborador pueda saber en qué caja está operando.
+ */
+router.get('/abierta/:usuario_id', auth, requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
-    return res.status(200).json(cajas.getAll());
+    if (req.usuario.rol === 'mesero' && req.usuario.id !== req.params.usuario_id) {
+      return res.status(403).json({ error: 'No autorizado para este recurso' });
+    }
+
+    const sesionActiva = sesiones.getActivaByUsuario(req.params.usuario_id);
+    if (!sesionActiva) {
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    return res.status(200).json(cajas.getById(sesionActiva.caja_id));
   } catch (err) {
     return handleError(res, err);
   }
 });
 
-router.get('/abierta/:usuario_id', (req, res) => {
+router.use(auth, requireRol('admin', 'cajero'));
+
+router.get('/', (req, res) => {
   try {
-    const caja = cajas.getCajaAbierta(req.params.usuario_id);
-    if (caja === null || caja === undefined) {
-      return res.status(404).json({ error: 'No encontrado' });
-    }
-    return res.status(200).json(caja);
+    return res.status(200).json(cajas.getAll());
   } catch (err) {
     return handleError(res, err);
   }
