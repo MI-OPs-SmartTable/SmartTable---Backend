@@ -27,7 +27,18 @@ function handleError(res, err) {
   if (message.includes('sesión activa')) {
     return res.status(409).json({ error: message });
   }
+  if (message.includes('Solo el mesero que creó')) {
+    return res.status(403).json({ error: message });
+  }
   return res.status(500).json({ error: message });
+}
+
+function ensurePedidoPropio(req, id) {
+  const pedido = pedidos.getById(id);
+  if (req.usuario.rol === 'mesero' && pedido.usuario_id !== req.usuario.id) {
+    throw new Error('Solo el mesero que creó el pedido puede modificarlo');
+  }
+  return pedido;
 }
 
 router.use(auth, requireRol('admin', 'cajero', 'mesero'));
@@ -82,6 +93,7 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
+    ensurePedidoPropio(req, req.params.id);
     const actualizado = Array.isArray(req.body.items)
       ? pedidos.replaceItems(req.params.id, req.body.items)
       : pedidos.update(req.params.id, req.body || {});
@@ -94,6 +106,7 @@ router.put('/:id', (req, res) => {
 
 router.delete('/:id', (req, res) => {
   try {
+    ensurePedidoPropio(req, req.params.id);
     const cancelado = pedidos.cancel(req.params.id);
     publishPedidosChanged(cancelado.caja_id);
     return res.status(200).json(cancelado);
@@ -105,6 +118,7 @@ router.delete('/:id', (req, res) => {
 router.patch('/:id/estado', (req, res) => {
   try {
     if (isMissing(req.body.estado)) return res.status(400).json({ error: 'Campo estado requerido' });
+    ensurePedidoPropio(req, req.params.id);
 
     const actualizado = pedidos.updateEstado(req.params.id, req.body.estado);
     publishPedidosChanged(actualizado.caja_id);

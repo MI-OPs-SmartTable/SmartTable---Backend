@@ -32,9 +32,9 @@ function handleError(res, err) {
   return res.status(500).json({ error: message });
 }
 
-router.use(auth, requireRol('admin', 'cajero'));
+router.use(auth);
 
-router.get('/', (req, res) => {
+router.get('/', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     return res.status(200).json(ventas.getAll());
   } catch (err) {
@@ -42,7 +42,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/caja/:caja_id', (req, res) => {
+router.get('/caja/:caja_id', requireRol('admin', 'cajero'), (req, res) => {
   try {
     return res.status(200).json(ventas.getByCaja(req.params.caja_id));
   } catch (err) {
@@ -50,7 +50,7 @@ router.get('/caja/:caja_id', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', requireRol('admin', 'cajero', 'mesero'), (req, res) => {
   try {
     const venta = ventas.getById(req.params.id);
     if (venta === null || venta === undefined) {
@@ -62,7 +62,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', requireRol('admin', 'cajero'), (req, res) => {
   try {
     if (isMissing(req.body.pedido_id)) return res.status(400).json({ error: 'Campo pedido_id requerido' });
     if (req.body.pagos === undefined || req.body.pagos === null || typeof req.body.pagos !== 'object') {

@@ -146,7 +146,7 @@ function ensureProveedor() {
   ).run(id, 'Proveedor General', 'Contacto POS', '3000000000', 'pos@local.com', 'N/A');
   return id;
 }
-
+ 
 function runPosCatalogSeeds() {
   const exists = db.prepare('SELECT id FROM categorias WHERE nombre = ? AND activo = 1').get('Comidas Rápidas');
   if (exists) {
